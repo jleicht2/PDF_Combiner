@@ -1,0 +1,59 @@
+Main v. 1.0 Committed 2025-02-17
+Size- ? sloc
+Changes-
+
+Edit Preferences Frame:
+- Tkinter frame for user to configure features of program, including visual appearance
+    - Font type, size, and window background color ("dark mode") can be adjusted
+    - The program function when selected files are non-sequential can also be adjusted
+    - There is an option to revert selections to previous values if necessary
+
+Label Button:
+- Extension of ttk.Label to allow for a "dark mode"-style button
+
+General/Main:
+- Initializes preferences dictionary and ttk styles
+    - If preferences files is not found, asks user to manually select file, or the default values are loaded
+- Draws Main Frame
+
+Main Frame:
+- If pypdf is not installed, attempts to install pypdf using pip
+    - This is a one-time installation on the first run of the program
+- Includes three methods for adding files to the list
+    - Typing of complete pathname of file (one at a time)
+    - Selecting files via Tkinter's filedialog (one or more at a time)
+    - Loading a text file with a list of full path names (one or more at a time)
+        - Loading a text file is only available if no other files have been selected
+        - Files that no longer exist can be reselected if desired
+- Scrollable frame lists file names and index positions
+- Check buttons are included to select files whose positions in the list need to be adjusted
+    - A check button at the top can be used to select/deselect all files simultaneously
+- Four movement buttons to the right of the scroll frame adjust the locations of the selected files
+    - "Double arrows" move files to the top or bottom of the list
+    - "Single arrows" move files up or down one position
+    - The way the program treats non-sequentially-selected files depends on the preference setting
+- A trash can icon below the movement buttons allows the selected files to be removed from the list
+- A label at the bottom of the scrollable frame shows the total number of files selected and their size
+- A checkbutton beneath the file count label can be used to add blank pages between each output file
+- General application buttons are at the bottom of the frame
+    - The "Clear" button will remove all files from the list
+    - The "Save" button will save the current file list to a text file for later use
+    - The "Merge" button generates a PdfWriter object to write the output file
+    - The "Preferences" button launches the EditPreferencesFrame to adjust program functionality and appearance options
+- Output is done by a PdfWriter object from the pypdf class
+    - The user will be prompted if any duplicate files should be removed before the PdfWriter object is generated
+    - If duplicate files will be deleted, only the first instance will remain in the list
+    - The user will be prompted to select the save location for the file
+- The merging process window includes several items to track progress
+    - A "Merging files" label will appear while the merger is being created
+    - When the files are being written, the size written, percent completion, and estimated time remaining will be shown
+- When closing the application, the user will be prompted to save the current files list if they have not been written
+    - A warning will appear if the files are actively being written, as premature termination will corrupt the output
+
+Scrollable Frame:
+- A configurable, scrollable frame
+
+**************************
+
+FUTURE FEATURES:
+- Implement compression if a way to know by how much file size is reduced can be determined
