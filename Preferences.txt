@@ -1,0 +1,5 @@
+Font Type: Times New Roman
+Font Size: 12
+Dark Mode: Enabled
+Combine Non-Sequential File Selections on Move: Always
+Add Blank Page Between Files: Disabled
