@@ -1,5 +1,5 @@
 Main v. 1.0 Committed 2025-02-17
-Size- ? sloc
+Size- 1,732 sloc
 Changes-
 
 Edit Preferences Frame:
@@ -55,5 +55,35 @@ Scrollable Frame:
 
 **************************
 
+Main v. 1.1 Committed 2025-02-24
+Size-
+Changes-
+
+Edit Preferences:
+- Added "Add Shortcut" button to enable a shortcut reprompt on program start
+
+General/Main:
+- Clarified text for missing preference file selections
+- Changed dictionary storage to picked form to support shortcut additions
+    - Includes method to "upgrade" text file preferences
+- Asks user for creation of desktop / Start menu / custom shortcuts on first launch
+    - Checks for existence of desktop / Start menu shortcuts and prompts for recreation if necessary
+    - Prompt can be "reset" using a button in the Edit Preferences window
+
+Main Frame:
+- Added exception handling for PermissionError when determining size of blank page
+    - Also added 1-second delay before os.remove()
+    - Will show warning message if file could not be deleted
+- Changed preferences save method to pickle
+
+**************************
+
 FUTURE FEATURES:
 - Implement compression if a way to know by how much file size is reduced can be determined
+
+Code Lengths End of 1.0 (1,732)
+Edit Preferences Frame: 164
+Label Button:           382
+Main Frame:             958
+Scrollable Frame:       107
+Main:                   121

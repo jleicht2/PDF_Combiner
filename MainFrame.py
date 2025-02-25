@@ -7,6 +7,8 @@ import copy
 import subprocess
 from threading import Thread
 from datetime import datetime
+import pickle
+import time
 
 init_path = os.path.dirname(sys.argv[0]) + "\\Files"
 sys.path.append(init_path)
@@ -954,7 +956,14 @@ class MainFrame:
                 now = now.replace("-", "")
                 blank.write(f"{now} Test.pdf")
                 self.total_size = os.path.getsize(f"{now} Test.pdf")
-                os.remove(f"{now} Test.pdf")
+                time.sleep(1)
+                try:
+                    os.remove(f"{now} Test.pdf")
+                except PermissionError:
+                    messagebox.showwarning(title="Test File Not Deleted",
+                                           message=f"A temporary file used to check the size of a blank page could not "
+                                                   f"be deleted. The file is named \"{now} Test.pdf\" in the script "
+                                                   f"directory.")
 
             # Generate merger
             self.merger = PdfWriter()
@@ -1149,14 +1158,9 @@ class MainFrame:
             if not confirm:
                 return
 
-        # Save preferences to dictionary
-        with (open(self.pref_file, "w")) as pref:
-            for pref_key, value in self.preferences.items():
-                # Convert boolean entries
-                if isinstance(value, bool):
-                    value = "Enabled" if value else "Disabled"
-
-                pref.write(f"{pref_key}: {value}\n")
+        # Pickle dictionary
+        with (open(self.pref_file, "wb")) as pref:
+            pickle.dump(self.preferences, pref)
 
         # If files list is not empty and the files have not been written, prompt if files should be saved
         if len(self.file_info) > 0 and not self.files_writen:

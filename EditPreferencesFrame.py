@@ -56,6 +56,13 @@ class EditPreferencesFrame:
 
         self.win.lift()
 
+    def flip_shortcut(self) -> None:
+        """Set the Shortcut Prompt flag to True and show message that shortcuts will be added on next launch."""
+        self.preference_dict["Shortcut Prompt"] = True
+        messagebox.showinfo(title="Shortcut Addition", message="You will be prompted to add shortcuts the next time "
+                                                               "PDF Combiner is launched.")
+        self.win.lift()
+
     def on_close(self) -> None:
         """Show info message box if needed, then close window."""
 
@@ -82,7 +89,7 @@ class EditPreferencesFrame:
                                                                   "Application must be reloaded for appearance changes "
                                                                   "to take effect.")
 
-        # Change something other than appearance: Show message for successful completion
+        # Changed something other than appearance: Show message for successful completion
         elif (self.orig_preference_dict["Combine Non-Sequential File Selections on Move"] !=
                 self.combine_non_seq_select.get()):
             messagebox.showinfo(title="Save Successful", message="Changes saved successfully.")
@@ -191,9 +198,12 @@ class EditPreferencesFrame:
         self.btn_frame.grid(row=3, column=0, padx=5, pady=1, sticky="ew")
 
         (LabelButton(self.btn_frame, text="Save", command=lambda: self.save_settings(), dark_mode=self.dark_mode)
-         .grid(row=3, column=0, padx=5, pady=5, sticky="e"))
+         .grid(row=0, column=0, padx=5, pady=5, sticky="e"))
         (LabelButton(self.btn_frame, text="Revert", command=lambda: self.revert_settings(), dark_mode=self.dark_mode)
-         .grid(row=3, column=1, padx=5, pady=5, sticky="w"))
+         .grid(row=0, column=1, padx=5, pady=5, sticky="w"))
+        (LabelButton(self.btn_frame, text="Add Shortcuts", command=lambda: self.flip_shortcut(),
+                     dark_mode=self.dark_mode)
+         .grid(row=0, column=2, padx=5, pady=5, sticky="w"))
 
         self.win.protocol("WM_DELETE_WINDOW", lambda: self.on_close())
 
