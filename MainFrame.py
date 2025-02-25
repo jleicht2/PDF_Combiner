@@ -892,7 +892,7 @@ class MainFrame:
             messagebox.showinfo(title="Select Save Location",
                                 message="Select the save location for the combined PDF file on the next screen.")
         while self.save_path == "":
-            self.save_path = filedialog.asksaveasfilename(initialdir=init_path)
+            self.save_path = filedialog.asksaveasfilename(initialdir=init_path, filetypes=[("PDF File", "*.pdf")])
 
             # No file was selected: prompt if selection should be tried again
             if self.save_path == "":
