@@ -37,7 +37,12 @@ def get_path_name(extension: str) -> str:
 
     path = ""
     while path == "":
-        path = filedialog.askopenfilename(initialdir=init_path)
+        if extension == ".txt":
+            path = filedialog.askopenfilename(initialdir=init_path, filetypes=[("Text Files", "*.txt")])
+        elif extension == ".pdf":
+            path = filedialog.askopenfilename(initialdir=init_path, filetypes=[("PDF Files", "*.pdf")])
+        else:
+            path = filedialog.askopenfilename(initialdir=init_path)
 
         # File was not chosen: ask if user wishes to retry
         if path == "":
@@ -335,7 +340,7 @@ class MainFrame:
 
         # Add multiple (with prompt): open file dialog
         if mode == "multi" and prompt:
-            path_list = filedialog.askopenfilenames()
+            path_list = filedialog.askopenfilenames(filetypes=[("PDF Files", "*.pdf")])
 
             # Add files to appropriate list
             skipped_files = []
