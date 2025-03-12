@@ -1,5 +1,7 @@
 from ScrollableFrame import *
 from EditPreferencesFrame import *
+from PageSelection import *
+from Tooltip import Tooltip
 from tkinter import messagebox, filedialog
 import os
 import sys
@@ -37,7 +39,12 @@ def get_path_name(extension: str) -> str:
 
     path = ""
     while path == "":
-        path = filedialog.askopenfilename(initialdir=init_path)
+        if extension == ".txt":
+            path = filedialog.askopenfilename(initialdir=init_path, filetypes=[("Text Files", "*.txt")])
+        elif extension == ".pdf":
+            path = filedialog.askopenfilename(initialdir=init_path, filetypes=[("PDF Files", "*.pdf")])
+        else:
+            path = filedialog.askopenfilename(initialdir=init_path)
 
         # File was not chosen: ask if user wishes to retry
         if path == "":
@@ -73,6 +80,8 @@ class MainFrame:
         self.win = win
         self.preferences = preferences
         self.dark_mode = preferences["Dark Mode"]
+        self.font_type = preferences["Font Type"]
+        self.font_size = int(preferences["Font Size"])
         self.pref_file = pref_file
 
         # Other parameters
@@ -82,6 +91,8 @@ class MainFrame:
         self.check_states = []
         self.placeholder_deleted = False
         self.selected_indices = []
+        self.selected_pages = {}  # Stores info from the page_sel window in the right-click event handler
+        self.write_pages = {}  # Stores "cleaned" info from the selected_pages dictionary
 
         # Merger frame attributes
         self.is_writing = False
@@ -101,8 +112,8 @@ class MainFrame:
         #       File path name manual entry
         ttk.Label(self.selections_frame, text="File Path:").grid(row=0, column=0, padx=(5, 1), pady=5, sticky="e")
         self.path_entered = StringVar()
-        self.path_entry = ttk.Entry(self.selections_frame, width=50, textvariable=self.path_entered,
-                               font=(self.preferences["Font Type"], self.preferences["Font Size"]))
+        self.path_entry = ttk.Entry(self.selections_frame, width=60, textvariable=self.path_entered,
+                               font=(self.font_type, self.font_size - 1))
         self.path_entry.grid(row=0, column=1, columnspan=2, padx=(1, 5), pady=(5, 1), sticky="w")
 
         self.invalid_char_label = ttk.Label(self.selections_frame, text="")  # Label for when invalid char is typed
@@ -112,6 +123,9 @@ class MainFrame:
         self.add_multi = LabelButton(self.selections_frame, text="Add Multiple", dark_mode=self.dark_mode,
                                      command=lambda: self.add_files("multi"))
         self.add_multi.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+
+        Tooltip(self.add_multi, text="Add multiple PDF files using the file dialog box")
+
         self.load_existing = LabelButton(self.selections_frame, text="Load Saved List", dark_mode=self.dark_mode,
                                          command=lambda: self.load_files())
         self.load_existing.grid(row=2, column=1, padx=5, pady=5, sticky="e")
@@ -132,6 +146,8 @@ class MainFrame:
         self.all_boxes = ttk.Checkbutton(border_frame, command=lambda: self.all_boxes_selection())
         self.all_boxes.grid(row=0, column=1, padx=1, pady=1, sticky="w")
         self.all_boxes.state(["!selected", "!alternate"])
+
+        Tooltip(self.all_boxes, text="Select or deselect all listed files")
 
         ttk.Label(border_frame, text="File Names:").grid(row=0, column=2, padx=(1, 5), pady=1, sticky="w")
 
@@ -186,6 +202,13 @@ class MainFrame:
                                   state="disabled", command=lambda: self.remove_files("selected"))
         self.delete.grid(row=6, column=1, padx=5, pady=5, sticky="n")
 
+        #       Button tooltips
+        Tooltip(self.move_top, text="Move selected files to top of list")
+        Tooltip(self.move_up, text="Move selected files up one position")
+        Tooltip(self.move_down, text="Move selected files down one position")
+        Tooltip(self.move_bottom, text="Move selected files to bottom of list")
+        Tooltip(self.delete, text="Remove selected files from list")
+
         #   Overall Buttons
         button_frame = ttk.Frame(self.win)
         button_frame.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
@@ -193,6 +216,9 @@ class MainFrame:
         self.cancel = LabelButton(button_frame, text="Clear", dark_mode=self.dark_mode,
                                   command=lambda: self.remove_files("all"))
         self.cancel.grid(row=0, column=0, padx=5, pady=5, sticky="e")
+
+        Tooltip(self.cancel, text="Remove all files from list")
+
         self.save = LabelButton(button_frame, text="Save List", dark_mode=self.dark_mode, state="disabled",
                                 command=lambda: self.save_files())
         self.save.grid(row=0, column=1, padx=5, pady=5)
@@ -237,14 +263,23 @@ class MainFrame:
         # Remove invalid characters (\ : * ? " < > |) and show message
         #   Special case for colon: can be in second position for drive letter
         try:
-            if (self.path_entered.get()[-1] in ["\\", "*", "?", "\"", "<", ">", "|"] or
-                    (self.path_entered.get()[-1] == ":" and len(self.path_entered.get()) != 2)):
-                self.invalid_char_label.configure(text=f"\"{self.path_entered.get()[-1]}\" is not a valid path "
-                                                       f"character")
+            input_str = self.path_entered.get()
+            new_str = ""
+            invalid_char = ""
+            for i, c in enumerate(input_str):
+                if c not in ["\\", "*", "?", "\"", "<", ">", "|", ":"] or (c == ":" and i == 1):
+                    new_str += c
+                else:
+                    invalid_char = c
+
+            if len(new_str) < len(input_str):
+                if self.path_entry.index(INSERT) != len(input_str):
+                    self.path_entry.icursor(self.path_entry.index(INSERT) - 1)
+                else:
+                    self.path_entry.icursor(self.path_entry.index(INSERT))
+                self.path_entered.set(new_str)
+                self.invalid_char_label.configure(text=f"\"{invalid_char}\" is not a valid path character")
                 self.invalid_char_label.after(ms=2000, func=del_message)
-                position = self.path_entry.index(INSERT)
-                self.path_entered.set(self.path_entered.get()[:position - 1] + self.path_entered.get()[position:])
-                self.path_entry.icursor(position - 1)
 
         except IndexError:  # Empty string
             pass
@@ -296,7 +331,8 @@ class MainFrame:
 
     def on_right_click(self, widget: tkinter.Widget) -> None:
         """
-        Show popup with full path name.
+        Determine index of selected widget, create selected_pages entry if necessary, then create a PageSelection
+        window.
 
         :param widget: Widget which triggered the mouse event
         :return:
@@ -306,17 +342,22 @@ class MainFrame:
         if "scrollableframe" not in str(widget):
             return
 
+        # Pass if file_info is empty
+        if len(self.file_info) == 0:
+            return
+
         # Determine widget index number
         try:
             index = widget.grid_info()["row"]
         except KeyError:  # Clicked in area near widget that was not a widget
             return
 
-        # Show popup with full file name
-        try:
-            messagebox.showinfo(title="Full Path", message=f"Full path: {self.file_info[index][0]}")
-        except IndexError:  # Clicked on filler label
-            pass
+        # Check if file is already in page selection dictionary
+        if self.file_info[index][0] not in self.selected_pages.keys():
+            self.selected_pages.update({self.file_info[index][0]: ("", True, True)})
+
+        # Call page selection window
+        page_sel = PageSelection(self.win, self.preferences, index, self.file_info[index], self.selected_pages)
 
     #   File handling
     def add_files(self, mode: str = ("multi", "single"), prompt: bool = True) -> None:
@@ -335,7 +376,7 @@ class MainFrame:
 
         # Add multiple (with prompt): open file dialog
         if mode == "multi" and prompt:
-            path_list = filedialog.askopenfilenames()
+            path_list = filedialog.askopenfilenames(filetypes=[("PDF Files", "*.pdf")])
 
             # Add files to appropriate list
             skipped_files = []
@@ -359,6 +400,9 @@ class MainFrame:
 
         # Add single: Check if inputted file exists
         elif mode == "single":
+            # Return if main window is not in focus
+            if not self.win.focus_get():
+                return
             path_name = self.path_entered.get()
             path_name = path_name.replace("\\", "/")
             # Append PDF extension if needed
@@ -401,8 +445,9 @@ class MainFrame:
             ttk.Label(self.scroll_frame, text=f"{row + 1:> 7}:").grid(row=row, column=0, padx=(5, 1), pady=0.5,
                                                                       sticky="e")
             self.checkboxes[-1].grid(row=row, column=1, padx=1, pady=0.5)
-            ttk.Label(self.scroll_frame, text=info[1], cursor="hand2").grid(row=row, column=2, padx=(1, 5), pady=0.5,
-                                                                            sticky="w")
+            test = ttk.Label(self.scroll_frame, text=info[1], cursor="hand2")
+            test.grid(row=row, column=2, padx=(1, 5), pady=0.5, sticky="w")
+            Tooltip(test, text=f"Full path: {info[0]}\nRight click to select pages")
 
         self.update_widgets()
 
@@ -423,7 +468,20 @@ class MainFrame:
             lines = load.readlines()
 
         for line in lines:
-            path_name = line.strip()
+            line = line.strip()
+            dict_include = False  # Flag for whether a dictionary entry should be added to page_selections
+
+            # Separate line into components
+            try:
+                path_name, pages_sel, resort, remove_dup = line.split("\t")
+                dict_include = True
+            except ValueError:  # File did not have page selection details associated with it
+                path_name = line
+                pages_sel = ""
+                resort = ""
+                remove_dup = ""
+
+            # Clean up path name
             path_name = path_name.replace("\\", "/")
             file_name = path_name.split("/")[-1]
 
@@ -446,6 +504,12 @@ class MainFrame:
             if path_name != "":
                 self.file_info.append((path_name, file_name))
                 load_count += 1
+
+            # Add details to dictionary (if file exists)
+            if dict_include and path_name != "":
+                resort = True if resort == "True" else False
+                remove_dup = True if remove_dup == "True" else False
+                self.selected_pages.update({path_name: (pages_sel, resort, remove_dup)})
 
         # Add files to window
         self.add_files(mode="multi", prompt=False)
@@ -604,6 +668,9 @@ class MainFrame:
                 if self.header_str not in widget.cget("text"):
                     widget.destroy()
 
+            # Delete page number entries
+            self.selected_pages.clear()
+
         # Delete selected: clear selected files, reduce length of checkbutton lists
         elif mode == "selected":
             confirm = messagebox.askyesno(title="Confirm Deletion", message="Are you sure you want to delete the "
@@ -613,6 +680,7 @@ class MainFrame:
 
             # Remove selected files
             for i, index in enumerate(self.selected_indices):
+                self.selected_pages[self.file_info[index - i][0]] = ("", True, True)
                 self.file_info.pop(index - i)
                 self.checkboxes[-1].grid_forget()
                 self.checkboxes.pop()
@@ -634,9 +702,10 @@ class MainFrame:
                     pass
 
             #   Add new file labels
-            for i, (_, file_name) in enumerate(self.file_info):
-                ttk.Label(self.scroll_frame, text=file_name, cursor="hand2").grid(row=i, column=2, padx=(1, 5),
-                                                                                  pady=0.5, sticky="w")
+            for i, (file_path, file_name) in enumerate(self.file_info):
+                label = ttk.Label(self.scroll_frame, text=file_name, cursor="hand2")
+                label.grid(row=i, column=2, padx=(1, 5), pady=0.5, sticky="w")
+                Tooltip(label, text=f"Full path: {file_path}\nRight click to select pages")
 
         #   Clear all checkboxes
         for state in self.check_states:
@@ -686,7 +755,13 @@ class MainFrame:
 
         with open(f"{save_file}", "w+") as file:
             for path, _ in self.file_info:
-                file.write(f"{path}\n")
+                file.write(f"{path}")
+                try:
+                    for item in self.selected_pages[path]:
+                        file.write(f"\t{item}")
+                except KeyError:  # Selected pages window was not launched for this file
+                    pass
+                file.write("\n")
 
         # Ask if program should be terminated
         if prompt:
@@ -796,9 +871,19 @@ class MainFrame:
         pref_win.title("Preferences")
         pref_win.resizable(False, False)
         EditPreferencesFrame(pref_win, self.preferences)
+        pref_win.focus_set()
 
     def merge_files(self) -> None:
-        """Update the frame, then call generate_merger."""
+        """Check no page number dialog boxes are open, update the frame, then call generate_merger."""
+
+        # Check that no page selection windows are open
+        for child in self.win.winfo_children():
+            if isinstance(child, Toplevel) and child.title() != "Preferences":
+                messagebox.showerror(title="Page Selection in Progress",
+                                     message="At least one page selection window is still open. Please close the page "
+                                             "selection window before continuing.")
+                child.lift()
+                return
 
         # Reconfigure window
         self.selections_frame.grid_remove()
@@ -821,6 +906,52 @@ class MainFrame:
         Thread(target=self.generate_merger, daemon=True).start()
 
     # Merger frame methods
+    def generate_page_lists(self) -> None:
+        """
+        Generate list of pages to print, resorting and remove duplicate pages based on user settings.
+        :return:
+        """
+
+        for path, (page_str, resort, remove_dup) in self.selected_pages.items():
+            # Create list of all page numbers
+            page_list = []
+            for item in page_str.split(","):
+                # Single item: append to list
+                if "-" not in item:
+                    try:
+                        page_list.append(int(item))
+                    except ValueError:
+                        pass
+                    continue
+
+                # Multiple items: append all to list
+                min_num, max_num = item.split("-")
+                for i in range(int(min_num), int(max_num) + 1):
+                    page_list.append(i)
+
+            # Remove duplicates if necessary
+            if remove_dup:
+                # Determine indices to remove
+                existing_pages = []
+                del_indices = []
+                for i, pg in enumerate(page_list):
+                    if pg not in existing_pages:
+                        existing_pages.append(pg)
+                        continue
+
+                    del_indices.append(i)
+
+                # Remove indices
+                for i, index in enumerate(del_indices):
+                    page_list.pop(index - i)
+
+            # Resort array if necessary
+            if resort:
+                page_list = sorted(page_list)
+
+            # Post "cleaned" data to new dictionary
+            self.write_pages.update({path: page_list})
+
     def generate_merger(self) -> None:
         """Check for and remove duplicate files (if needed), get the file save location, then generate the PdfWriter."""
 
@@ -887,7 +1018,7 @@ class MainFrame:
             messagebox.showinfo(title="Select Save Location",
                                 message="Select the save location for the combined PDF file on the next screen.")
         while self.save_path == "":
-            self.save_path = filedialog.asksaveasfilename(initialdir=init_path)
+            self.save_path = filedialog.asksaveasfilename(initialdir=init_path, filetypes=[("PDF File", "*.pdf")])
 
             # No file was selected: prompt if selection should be tried again
             if self.save_path == "":
@@ -902,7 +1033,7 @@ class MainFrame:
                 return
 
             # Append extension if needed
-            if "." not in self.save_path:
+            if ".pdf" not in self.save_path:
                 self.save_path += ".pdf"
 
             # Check file has the correct extension
@@ -946,7 +1077,10 @@ class MainFrame:
         update = merger_label.after(ms=0, func=update_label)
 
         def merger_generation() -> None:
-            """Generate PdfWriter object and add files. Include blank pages between files if selected."""
+            """
+            Generate PdfWriter object and add specified pages of files. Include blank pages between files if selected.
+            :return:
+            """
             # Check size of blank page
             if self.add_blank_page.get():
                 blank = PdfWriter()
@@ -978,14 +1112,36 @@ class MainFrame:
                         path_i = get_path_name(".pdf")
 
                 if path_i != "":  # Will be empty string if file does not exist
-                    self.merger.append(path_i)
-                    self.total_size += os.path.getsize(path_i)
+                    # No entry found in write_pages: append entire file
+                    if path_i not in self.write_pages.keys():
+                        self.merger.append(path_i)
+                        self.total_size += os.path.getsize(path_i)
+
+                    # Entry found in write_pages: append selected pages
+                    else:
+                        reader = PdfReader(path_i)
+                        # If all pages were selected, add full file at once
+                        check_str = f"1-{reader.get_num_pages()}"
+                        if self.selected_pages[path_i][0] == check_str:
+                            self.merger.append(path_i)
+                            self.total_size += os.path.getsize(path_i)
+                            continue
+
+                        # Otherwise, add pages individually
+                        for page in self.write_pages[path_i]:
+                            self.merger.add_page(reader.pages[page - 1])
+                            # Estimate output size by scaling original file size by fraction of pages being printed
+                            self.total_size += (os.path.getsize(path_i) *
+                                                len(self.write_pages[path_i]) / reader.get_num_pages())
 
                     # Append blank page if specified
                     if self.add_blank_page.get():
                         self.merger.add_blank_page()
 
             self.total_size = self.total_size / (1024 ** 2)  # Convert size to MB
+
+        # Clean up pages in page_selection dictionary
+        self.generate_page_lists()
 
         merge = Thread(target=merger_generation, daemon=True)
         merge.start()

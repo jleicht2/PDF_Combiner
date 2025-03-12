@@ -56,7 +56,7 @@ Scrollable Frame:
 **************************
 
 Main v. 1.1 Committed 2025-02-24
-Size-
+Size- 1,844 sloc (+112)
 Changes-
 
 Edit Preferences:
@@ -78,12 +78,62 @@ Main Frame:
 
 **************************
 
-FUTURE FEATURES:
-- Implement compression if a way to know by how much file size is reduced can be determined
+Main v. 1.2 Committed 2025-03-11
+Size-
+Changes-
 
-Code Lengths End of 1.0 (1,732)
-Edit Preferences Frame: 164
-Label Button:           382
-Main Frame:             958
-Scrollable Frame:       107
-Main:                   121
+General/Main:
+- Fixed possible error caused by user not selecting folder for custom shortcut
+- Reimplemented shortcut addition function to only use built-in Python functions (win32com.client)
+
+Main Frame:
+- Added file selection filters to get_path_name and add_files (multiple)
+- Added tooltips for Add Multiple, Select All, Movement, and Clear buttons
+- Replaced right-click window with tooltip to show full pathname of file
+    - Also includes "hint" to right-click to select page numbers
+- Fixed possible issue of invalid character being inserted somewhere other than the end of the input string
+- Fixed "file not found" message if <Enter> is pressed with Preferences window open
+    - Checks whether Main Frame is in focus
+- Implemented new Page Selection feature
+    - Added selected_pages dictionary to store information about user selections; see Page Selection
+    - When merging files, checks selected pages for out of order or duplicate pages based on user selections
+    - Files with not all pages selected are added to the merger one page at a time rather than as a single file
+    - Output file size for non-complete files is estimated based on percentage of total pages being "printed"
+    - Files cannot be merged if Page Selection window is open (to ensure all changes saved)
+    - Page Selection details are included in text file used for saving/loading file list
+
+Page Selection [NEW]:
+- A popup window for the user to select which page numbers should be combined
+    - Shows the file/folder name and the maximum page number
+    - Text is input via an entry box, which defaults to the full page range
+    - User can select whether pages that are out-of-order should be put back in order; enabled by default
+    - User can select whether duplicate pages are removed; enabled by default
+    - Empty input strings default to the full page range
+- The window will check for feasible page selection strings before exiting
+    - This includes showing a warning if pages outside the available range of pages were automatically removed
+- Details for this window are stored in the selected_pages dictionary in Main Frame
+
+Tooltip [NEW]:
+- Class that extends OnHoverTooltipBase abstract class from the idlelib.tooltip library
+- Shows a tooltip with the specified text after the specified delay has elapsed
+    - The maximum tooltip width can be set; it defaults to the maximum available width
+    - If the tooltip exceeds the max width, the line delimiters are the newline, space, and backslash (/)
+- The tooltip position is determined so that it is fully contained in the main window (horizontally)
+    - To also constrain the tooltip height may risk some of the tooltip text being cut off; this shouldn't be an issue
+
+**************************
+
+NEXT STEPS:
+
+FUTURE FEATURES:
+- Figure out way to hide tooltip if anchor_widget is disabled
+- Implement compression if a way to know by how much file size is reduced can be determined
+- Correct file size if not printing all pages (currently just has an estimate)
+- Tooltips- change tooltip text based on state(s) of widget
+
+Code Lengths End of 1.0 (1,732), 1.1 (1,844)
+Edit Preferences Frame: 164, 173
+Label Button:           382, 382
+Main Frame:             958, 963
+Scrollable Frame:       107, 107
+Main:                   121, 219
