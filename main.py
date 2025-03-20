@@ -7,6 +7,7 @@ import sys
 import os
 
 # Import win32com.client and install if not available and user opts to auto-install it
+#   If import fails or if user opts to not install, can continue, but without ability to add shortcuts
 try:
     import win32com.client
 except ModuleNotFoundError:
@@ -15,17 +16,27 @@ except ModuleNotFoundError:
                                                                          "install win32com?")
     if auto_install:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pywin32"])
-        messagebox.showinfo(title="win32com Installed", message="The win32com package was successfully installed.\n"
-                                                                "The program will be restated.")
-        # Program must be restarted for win32com module to work
-        os.execv(sys.executable, ['python'] + [f"\"{sys.argv[0]}\""])
+        if "win32com" in sys.modules:
+            messagebox.showinfo(title="win32com Installed", message="The win32com package was successfully installed.\n"
+                                                                    "The program will be restated.")
+            # Program must be restarted for win32com module to work
+            os.execv(sys.executable, ['python'] + [f"\"{sys.argv[0]}\""])
+
+        else:
+           messagebox.showerror(title="win32 Install Error", message="The win32com package could not be auto-installed."
+                                                                     " The program still can be used, but shortcuts "
+                                                                     "can not be automatically created.")
 
     else:
         messagebox.showerror(title="Missing win32com", message="Please install the win32com package.")
-        raise ModuleNotFoundError
+        cont = messagebox.askyesno(title="Continue?", message="You can still use the program without the win32com "
+                                                              "package, but shortcuts cannot be automatically created. "
+                                                              "Would you like to continue?")
+        if not cont:
+            raise ModuleNotFoundError
 
 # Global variables
-version = "1.2.1"
+version = "1.2.2"
 
 # Create folder for files if not already present
 if not os.path.exists(f"{os.path.dirname(sys.argv[0])}\\Files"):
@@ -145,6 +156,10 @@ def add_shortcuts(preferences: dict) -> None:
     # Return if shortcuts should not be created and no shortcuts exist
     if (not preferences["Shortcut Prompt"] and preferences["Desktop Shortcut"] == "" and
             preferences["Start Menu Shortcut"] == ""):
+        return
+
+    # Return if pywin32 could not be installed
+    if "pywin32" not in sys.modules:
         return
 
     # Sub-functions to create a shortcut
