@@ -5,11 +5,27 @@ except ModuleNotFoundError:  # User opted not to install pypdf (and package was 
 
 import sys
 import os
-import win32com.client
 
+# Import win32com.client and install if not available and user opts to auto-install it
+try:
+    import win32com.client
+except ModuleNotFoundError:
+    auto_install = messagebox.askyesno(title="Missing win32com", message="The \"win32com\" package was not found.\n"
+                                                                         "Would you like to try to automatically "
+                                                                         "install win32com?")
+    if auto_install:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pywin32"])
+        messagebox.showinfo(title="win32com Installed", message="The win32com package was successfully installed.\n"
+                                                                "The program will be restated.")
+        # Program must be restarted for win32com module to work
+        os.execv(sys.executable, ['python'] + [f"\"{sys.argv[0]}\""])
+
+    else:
+        messagebox.showerror(title="Missing win32com", message="Please install the win32com package.")
+        raise ModuleNotFoundError
 
 # Global variables
-version = 1.2
+version = "1.2.1"
 
 # Create folder for files if not already present
 if not os.path.exists(f"{os.path.dirname(sys.argv[0])}\\Files"):
