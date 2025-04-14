@@ -162,6 +162,14 @@ class PageSelection(Toplevel):
             self.lift()
             return
 
+        # No (,,) in string
+        if self.pages_sel.get().find(",,") >= 0:
+            index = self.pages_sel.get().find("-,")
+            messagebox.showerror(title="Invalid Input", message=f"A comma was found immediately after a comma at "
+                                                                f"position {index + 1} in the input. Did you forget "
+                                                                f"a number?")
+            self.lift()
+
         #   First/last character cannot be a "-"
         if self.pages_sel.get()[0] == "-":
             messagebox.showerror(title="Invalid Input", message=f"The input string cannot begin with a dash. Did you "

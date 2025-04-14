@@ -10,7 +10,7 @@ import subprocess
 from threading import Thread
 from datetime import datetime
 import pickle
-import time
+from io import BytesIO
 
 init_path = os.path.dirname(sys.argv[0]) + "\\Files"
 sys.path.append(init_path)
@@ -357,7 +357,7 @@ class MainFrame:
             self.selected_pages.update({self.file_info[index][0]: ("", True, True)})
 
         # Call page selection window
-        page_sel = PageSelection(self.win, self.preferences, index, self.file_info[index], self.selected_pages)
+        PageSelection(self.win, self.preferences, index, self.file_info[index], self.selected_pages)
 
     #   File handling
     def add_files(self, mode: str = ("multi", "single"), prompt: bool = True) -> None:
@@ -1044,18 +1044,6 @@ class MainFrame:
                 self.save_path = ""
                 continue
 
-        # Delete file (if it exists)
-        if os.path.exists(self.save_path):
-            can_del = False
-            while not can_del:
-                try:
-                    os.remove(self.save_path)
-                    can_del = True
-                except PermissionError:
-                    messagebox.showerror(title="File In Use", message="The selected output file is in use by another "
-                                                                      "application. Please close the file and try "
-                                                                      "again.")
-
         # Update merger label while merger is being built
         add_dot = True  # Flag for whether dot should be added to or removed from label
 
@@ -1076,6 +1064,26 @@ class MainFrame:
 
         update = merger_label.after(ms=0, func=update_label)
 
+        # Load file into buffer if save file is to be merged
+        save_file_copy = BytesIO()
+        if self.save_path in [full_path for full_path, _ in self.file_info]:
+            PdfWriter(self.save_path).write(save_file_copy)
+
+        # Delete file to be used for saving PDF (if it exists)
+        if os.path.exists(self.save_path):
+            can_del = False
+            while not can_del:
+                try:
+                    os.remove(self.save_path)
+                    can_del = True
+                except PermissionError:
+                    messagebox.showerror(title="File In Use", message="The selected output file is in use by another "
+                                                                      "application. Please close the file and try "
+                                                                      "again.")
+
+        # Clean up pages in page_selection dictionary
+        self.generate_page_lists()
+
         def merger_generation() -> None:
             """
             Generate PdfWriter object and add specified pages of files. Include blank pages between files if selected.
@@ -1085,53 +1093,51 @@ class MainFrame:
             if self.add_blank_page.get():
                 blank = PdfWriter()
                 blank.add_blank_page(612, 792)  # 612x792 corresponds to 8.5"x11"
-                now = str(datetime.now())  # Used to minimize risk of incorrect file being deleted
-                now = now.replace(":", "")
-                now = now.replace("-", "")
-                blank.write(f"{now} Test.pdf")
-                self.total_size = os.path.getsize(f"{now} Test.pdf")
-                time.sleep(1)
-                try:
-                    os.remove(f"{now} Test.pdf")
-                except PermissionError:
-                    messagebox.showwarning(title="Test File Not Deleted",
-                                           message=f"A temporary file used to check the size of a blank page could not "
-                                                   f"be deleted. The file is named \"{now} Test.pdf\" in the script "
-                                                   f"directory.")
+                blank_page = BytesIO()
+                blank.write(blank_page)
+                self.total_size = len(blank_page.getbuffer())
+                blank_page.close()
+                blank.close()
 
             # Generate merger
             self.merger = PdfWriter()
 
             #   Add files (including blank pages) to merger and determine total size
             for path_i, _ in self.file_info:
-                if not os.path.exists(path_i):
+                if not os.path.exists(path_i) and path_i != self.save_path:
                     reselect_file = messagebox.askyesno(title="File Not Found", message=f"The file \"{path_i}\" was not"
                                                                                         f" found. Would you like to "
                                                                                         f"select a replacement file?")
                     if reselect_file:
                         path_i = get_path_name(".pdf")
 
+                # Open file if necessary
+                if path_i == self.save_path:
+                    path_obj = save_file_copy
+                else:
+                    path_obj = open(path_i, "rb")
+
                 if path_i != "":  # Will be empty string if file does not exist
                     # No entry found in write_pages: append entire file
                     if path_i not in self.write_pages.keys():
-                        self.merger.append(path_i)
-                        self.total_size += os.path.getsize(path_i)
+                        self.merger.append(path_obj)
+                        self.total_size += len(path_obj.getbuffer())
 
                     # Entry found in write_pages: append selected pages
                     else:
-                        reader = PdfReader(path_i)
+                        reader = PdfReader(path_obj)
                         # If all pages were selected, add full file at once
                         check_str = f"1-{reader.get_num_pages()}"
                         if self.selected_pages[path_i][0] == check_str:
-                            self.merger.append(path_i)
-                            self.total_size += os.path.getsize(path_i)
+                            self.merger.append(path_obj)
+                            self.total_size += len(path_obj.getbuffer())
                             continue
 
                         # Otherwise, add pages individually
                         for page in self.write_pages[path_i]:
                             self.merger.add_page(reader.pages[page - 1])
                             # Estimate output size by scaling original file size by fraction of pages being printed
-                            self.total_size += (os.path.getsize(path_i) *
+                            self.total_size += (len(path_i.getbuffer()) *
                                                 len(self.write_pages[path_i]) / reader.get_num_pages())
 
                     # Append blank page if specified
@@ -1139,9 +1145,6 @@ class MainFrame:
                         self.merger.add_blank_page()
 
             self.total_size = self.total_size / (1024 ** 2)  # Convert size to MB
-
-        # Clean up pages in page_selection dictionary
-        self.generate_page_lists()
 
         merge = Thread(target=merger_generation, daemon=True)
         merge.start()
@@ -1240,8 +1243,10 @@ class MainFrame:
                 minutes = total_time // 60
                 seconds = total_time % 60
 
-                if total_time < 1:
+                if total_time < 1 and ";" in time_remaining.cget("text"):
                     time_remaining.configure(text="Finishing up")
+                elif total_time < 1 and ";" not in time_remaining.cget("text"):
+                    time_remaining.configure(text="Calculating")
                 else:
                     time_remaining.configure(text=f"{minutes:>02.0f}:{seconds:>02.0f}")
 
@@ -1262,16 +1267,15 @@ class MainFrame:
         start_time = datetime.now()
         update = time_remaining.after(ms=0, func=update_labels)
 
-        # Compress merger- NOT IMPLEMENTED
-        """
-        try:
-            self.merger.compress_identical_objects()
-        except AttributeError:
-            messagebox.showwarning(title="No Compression", message="The PdfWriter compression function was not "
-                                                                   "available. Output file sizes may be larger than "
-                                                                   "expected. pypdf v. 5.1.0 or greater is required "
-                                                                   "for the compression function to work.")
-        """
+        # Compress merger (if enabled)
+        if self.preferences["Compress Output"]:
+            try:
+                self.merger.compress_identical_objects()
+            except AttributeError:
+                messagebox.showwarning(title="No Compression",
+                                       message="The PdfWriter compression function was not available. Output file "
+                                               "sizes may be larger than expected. pypdf v. 5.1.0 or greater is "
+                                               "required for the compression function to work.")
 
         # Write output
         self.is_writing = True
@@ -1297,10 +1301,22 @@ class MainFrame:
         self.next.set_state("normal")
 
         time_remaining.after_cancel(update)
-        written_size.configure(text=f"{self.total_size:.1f}/{self.total_size:.1f} MB")
+
+        if self.preferences["Compress Output"]:
+            # Use actual file size rather than self.total_size to account for compression
+            written_size.configure(text=f"{os.path.getsize(self.save_path) / (1024 ** 2):.1f} MB "
+                                        f"({self.total_size - os.path.getsize(self.save_path) / (1024 ** 2):.1f} MB "
+                                        f"saved)")
+        else:
+            # Use original size
+            written_size.configure(text=f"{self.total_size:.1f} MB")
+
         progress_value.set(100)
         progress_label.configure(text="100%")
         time_remaining.configure(text="Completed.")
+
+        # Activate the "Finish" button
+        self.next.focus_set()
 
     # Close process
     def on_close(self) -> None:

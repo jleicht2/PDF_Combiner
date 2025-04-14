@@ -1,9 +1,12 @@
+from LabelButton import *
+from Tooltip import Tooltip
+
 import copy
 import os
+import platform
 import sys
-from LabelButton import *
 from tkinter import messagebox
-from tkinter import ttk
+
 
 initPath = os.path.dirname(sys.argv[0]) + "\\Files\\"
 sys.path.append(initPath)
@@ -34,6 +37,12 @@ class EditPreferencesFrame:
             self.preference_dict["Dark Mode"] = False
 
         self.preference_dict["Combine Non-Sequential File Selections on Move"] = self.combine_non_seq_select.get()
+
+        if self.compress_out_select.get():
+            self.preference_dict["Compress Output"] = True
+        else:
+            self.preference_dict["Compress Output"] = False
+
         
         # Close window
         self.on_close()
@@ -53,6 +62,7 @@ class EditPreferencesFrame:
         self.size_select.set(self.orig_preference_dict["Font Size"])
         self.dark_mode_select.set(self.orig_preference_dict["Dark Mode"])
         self.combine_non_seq_select.set(self.orig_preference_dict["Combine Non-Sequential File Selections on Move"])
+        self.compress_out_select.set(self.orig_preference_dict["Compress Output"])
 
         self.win.lift()
 
@@ -71,7 +81,8 @@ class EditPreferencesFrame:
                 int(self.preference_dict["Font Size"]) != int(self.size_select.get()) or
                 self.preference_dict["Dark Mode"] != self.dark_mode_select.get() or
                 self.preference_dict["Combine Non-Sequential File Selections on Move"] !=
-                    self.combine_non_seq_select.get()):
+                    self.combine_non_seq_select.get() or
+                self.compress_out_select.get() != self.preference_dict["Compress Output"]):
             save = messagebox.askyesno(title="Unsaved Changes", message="You have unsaved changes. Would you like to "
                                                                         "save them before exiting?")
             if save:
@@ -91,7 +102,8 @@ class EditPreferencesFrame:
 
         # Changed something other than appearance: Show message for successful completion
         elif (self.orig_preference_dict["Combine Non-Sequential File Selections on Move"] !=
-                self.combine_non_seq_select.get()):
+                self.combine_non_seq_select.get() or
+                self.orig_preference_dict["Compress Output"] != self.compress_out_select.get()):
             messagebox.showinfo(title="Save Successful", message="Changes saved successfully.")
 
         # Close window
@@ -108,17 +120,18 @@ class EditPreferencesFrame:
         if not isinstance(event.widget, ttk.Entry):
             return
 
-        # Definition of allowable characters
-        allowed_chars = [8, 9, 13, 16, 17, 18, 37, 38, 39, 40, 46]
-        for i in range(48, 58):
-            allowed_chars.append(i)
-        for i in range(96, 106):
-            allowed_chars.append(i)
+        input_str = self.size_select.get()
+        new_str = ""
+        for c in input_str:
+            if c.isnumeric():
+                new_str += c
 
-        if (event.keycode not in allowed_chars) or len(self.size_select.get()) > 2:
-            position = self.size_box.index(INSERT)
-            self.size_select.set(self.size_select.get()[:position - 1] + self.size_select.get()[position:])
-            self.size_box.icursor(position - 1)
+        if len(new_str) < len(input_str):
+            if self.size_box.index(INSERT) != len(input_str):
+                self.size_box.icursor(self.size_box.index(INSERT) - 1)
+            else:
+                self.size_box.icursor(self.size_box.index(INSERT))
+            self.size_select.set(new_str)
 
     def __init__(self, win: Toplevel, preferences: dict) -> None:
         """
@@ -169,10 +182,9 @@ class EditPreferencesFrame:
         self.dark_mode_frame = ttk.Frame(self.win)
         self.dark_mode_frame.grid(row=1, column=0, padx=5, pady=1, sticky="ew")
 
-        ttk.Label(self.dark_mode_frame, text="Dark Mode:").grid(row=0, column=0, padx=(5, 1), pady=5, sticky="e")
         self.dark_mode_select = BooleanVar(value=self.preference_dict["Dark Mode"])
-        self.dark_mode_box = ttk.Checkbutton(self.dark_mode_frame, variable=self.dark_mode_select)
-        self.dark_mode_box.grid(row=0, column=1, padx=(1, 5), pady=5, sticky="w")
+        self.dark_mode_box = ttk.Checkbutton(self.dark_mode_frame, variable=self.dark_mode_select, text="Dark Mode")
+        self.dark_mode_box.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
         # Combine non-sequential files
         self.non_seq_frame = ttk.Frame(self.win)
@@ -183,27 +195,45 @@ class EditPreferencesFrame:
         self.combine_non_seq_select = StringVar(value=self.combine_non_seq)
         self.combine_non_seq_radio = ttk.Radiobutton(self.non_seq_frame, text="Always",
                                                      variable=self.combine_non_seq_select, value="Always")
-        self.combine_non_seq_radio.grid(row=1, column=0, padx=1, pady=5, sticky="w")
+        self.combine_non_seq_radio.grid(row=1, column=0, padx=5, pady=1, sticky="w")
+        Tooltip(self.combine_non_seq_radio, text="Always move any non-sequential files next to each other when the "
+                                                 "list position of the files is changed")
 
         self.combine_non_seq_radio = ttk.Radiobutton(self.non_seq_frame, text="Ask",
                                                      variable=self.combine_non_seq_select, value="Ask")
-        self.combine_non_seq_radio.grid(row=1, column=1, padx=1, pady=5, sticky="w")
+        self.combine_non_seq_radio.grid(row=1, column=1, padx=5, pady=1, sticky="w")
+        Tooltip(self.combine_non_seq_radio, text="Ask before moving any non-sequential files next to each other when "
+                                                 "the list position of the files is changed")
 
         self.combine_non_seq_radio = ttk.Radiobutton(self.non_seq_frame, text="Never",
                                                      variable=self.combine_non_seq_select, value="Never")
-        self.combine_non_seq_radio.grid(row=1, column=2, padx=1, pady=5, sticky="w")
+        self.combine_non_seq_radio.grid(row=1, column=2, padx=5, pady=1, sticky="w")
+        Tooltip(self.combine_non_seq_radio, text="Never move any non-sequential files next to each other when the list "
+                                                 "position of the files is changed")
+
+        # Compress output
+        self.compress_out_frame = ttk.Frame(self.win)
+        self.compress_out_frame.grid(row=3, column=0, padx=5, pady=1, sticky="ew")
+        self.compress_out_select = BooleanVar(value = self.preference_dict["Compress Output"])
+        self.compress_out_box = ttk.Checkbutton(self.compress_out_frame, variable=self.compress_out_select,
+                                                text="Compress Output")
+        self.compress_out_box.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        Tooltip(self.compress_out_box, text="Use PdfWriter's compress_identical_objects method to reduce output file "
+                                            "size")
 
         # Action buttons
         self.btn_frame = ttk.Frame(self.win)
-        self.btn_frame.grid(row=3, column=0, padx=5, pady=1, sticky="ew")
+        self.btn_frame.grid(row=4, column=0, padx=5, pady=1, sticky="ew")
 
         (LabelButton(self.btn_frame, text="Save", command=lambda: self.save_settings(), dark_mode=self.dark_mode)
          .grid(row=0, column=0, padx=5, pady=5, sticky="e"))
         (LabelButton(self.btn_frame, text="Revert", command=lambda: self.revert_settings(), dark_mode=self.dark_mode)
          .grid(row=0, column=1, padx=5, pady=5, sticky="w"))
-        (LabelButton(self.btn_frame, text="Add Shortcuts", command=lambda: self.flip_shortcut(),
-                     dark_mode=self.dark_mode)
-         .grid(row=0, column=2, padx=5, pady=5, sticky="w"))
+
+        if platform.system().lower() == "windows":
+            (LabelButton(self.btn_frame, text="Add Shortcuts", command=lambda: self.flip_shortcut(),
+                         dark_mode=self.dark_mode)
+             .grid(row=0, column=2, padx=5, pady=5, sticky="w"))
 
         self.win.protocol("WM_DELETE_WINDOW", lambda: self.on_close())
 

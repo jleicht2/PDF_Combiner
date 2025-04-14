@@ -1,5 +1,4 @@
 Main v. 1.0 Committed 2025-02-17
-Size- 1,732 sloc
 Changes-
 
 Edit Preferences Frame:
@@ -56,7 +55,6 @@ Scrollable Frame:
 **************************
 
 Main v. 1.1 Committed 2025-02-24
-Size- 1,844 sloc (+112)
 Changes-
 
 Edit Preferences:
@@ -79,7 +77,6 @@ Main Frame:
 **************************
 
 Main v. 1.2 Committed 2025-03-11
-Size-
 Changes-
 
 General/Main:
@@ -123,17 +120,40 @@ Tooltip [NEW]:
 
 **************************
 
-NEXT STEPS:
+Main v. 1.3 Committed 2025-04-13
+Changes-
 
-FUTURE FEATURES:
-- Figure out way to hide tooltip if anchor_widget is disabled
-- Implement compression if a way to know by how much file size is reduced can be determined
-- Correct file size if not printing all pages (currently just has an estimate)
-- Tooltips- change tooltip text based on state(s) of widget
+Edit Preferences Frame:
+- Changed text entry validation procedure to use "new method" (check input string rather than key pressed)
+- Slightly adjusted position formatting for Combine Non-Sequential Files radiobutton
+- Added toggle for using PdfWriter compress_identical_objects when writing output
+- "Add Shortcuts" button only appears on Windows machines
 
-Code Lengths End of 1.0 (1,732), 1.1 (1,844)
-Edit Preferences Frame: 164, 173
-Label Button:           382, 382
-Main Frame:             958, 963
-Scrollable Frame:       107, 107
-Main:                   121, 219
+General/Main:
+- Put win32com.client import statement in try-except like pypdf import
+    - Installation is not attempted if the system is not Windows (the add shortcut flag is set to False)
+    - Code is in add_shortcuts, so will only run when necessary
+    - Requires a restart for the import to be successful; this should be completed automatically (1.2.1 2025-03-19)
+    - Also allows user to continue without package with warning that shortcuts cannot be created (1.2.2 2025-03-19)
+    - If package cannot be installed, sets shortcut addition flag in dictionary to False to avoid re-prompting
+- Improved flow of preference dictionary setup when Preferences.pkl is unavailable
+    - User can select a different file (e.g., from prior version of program)
+        - Program checks if unpickled object is a dictionary to reduce the chance of an incorrect file being selected
+    - If no previous file exists, user can choose the default preferences or use the Edit Preferences frame to adjust
+    - A warning is shown if dictionary keys were adjusted
+        - This can happen if a version change adds new configuration features
+        - It can also happen if an incorrect file was selected as the preferences file
+
+Main Frame:
+- Changed blank page size check to "write" to a BytesIO object to avoid potential issues deleting the test file
+- Implemented PdfWriter compress_identical_objects
+    - User can disable compression in the Preferences window
+    - "Completion" window is updated with file size saved due to compression if needed
+- Corrected time remaining calculation so "Finishing up" is not shown sooner than expected
+- A file to be merged can now also be selected as the save file
+    - The file is temporarily stored in a BytesIO object which may impact performance
+
+Page Selection:
+- Now checks for no ",," in page selection input string when attempting to exit
+
+**************************

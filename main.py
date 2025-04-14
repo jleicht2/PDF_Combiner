@@ -1,42 +1,26 @@
 try:
-    from MainFrame import *
+    from MainFrame import *  # Includes Edit Preferences Frame
 except ModuleNotFoundError:  # User opted not to install pypdf (and package was not already installed)
     raise SystemExit
 
 import sys
 import os
-
-# Import win32com.client and install if not available and user opts to auto-install it
-#   If import fails or if user opts to not install, can continue, but without ability to add shortcuts
-try:
-    import win32com.client
-except ModuleNotFoundError:
-    auto_install = messagebox.askyesno(title="Missing win32com", message="The \"win32com\" package was not found.\n"
-                                                                         "Would you like to try to automatically "
-                                                                         "install win32com?")
-    if auto_install:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "pywin32"])
-        if "win32com" in sys.modules:
-            messagebox.showinfo(title="win32com Installed", message="The win32com package was successfully installed.\n"
-                                                                    "The program will be restated.")
-            # Program must be restarted for win32com module to work
-            os.execv(sys.executable, ['python'] + [f"\"{sys.argv[0]}\""])
-
-        else:
-           messagebox.showerror(title="win32 Install Error", message="The win32com package could not be auto-installed."
-                                                                     " The program still can be used, but shortcuts "
-                                                                     "can not be automatically created.")
-
-    else:
-        messagebox.showerror(title="Missing win32com", message="Please install the win32com package.")
-        cont = messagebox.askyesno(title="Continue?", message="You can still use the program without the win32com "
-                                                              "package, but shortcuts cannot be automatically created. "
-                                                              "Would you like to continue?")
-        if not cont:
-            raise ModuleNotFoundError
+import platform
+import shutil
 
 # Global variables
-version = "1.2.2"
+version = "1.3"
+
+# Default preferences
+default_pref = {"Font Type": "Times New Roman",
+                "Font Size": 12,
+                "Dark Mode": True,
+                "Combine Non-Sequential File Selections on Move": "Ask",
+                "Compress Output": True,
+                "Add Blank Page Between Files": True,
+                "Shortcut Prompt": True,
+                "Desktop Shortcut": "",
+                "Start Menu Shortcut": ""}
 
 # Create folder for files if not already present
 if not os.path.exists(f"{os.path.dirname(sys.argv[0])}\\Files"):
@@ -44,21 +28,69 @@ if not os.path.exists(f"{os.path.dirname(sys.argv[0])}\\Files"):
 init_path = os.path.dirname(sys.argv[0]) + "\\Files"
 sys.path.append(init_path)
 
-def get_preferences(preferences: dict) -> str:
+
+def set_styles(preferences: dict, win: Tk) -> None:
+    """
+    Set up ttk Styles for win based on user preferences.
+
+    :param preferences: Dictionary of program preferences
+    :param win: Tk object in which to set up the styles
+    :return:
+    """
+
+    style = ttk.Style(win)
+    if preferences["Dark Mode"]:
+        win.configure(bg="black")
+        style.configure("TLabel", font=(preferences["Font Type"], preferences["Font Size"]), foreground="white",
+                        background="black")
+        style.configure("TFrame", foreground="white", background="black")
+        style.configure("TLabelframe.Label", font=(preferences["Font Type"], preferences["Font Size"]),
+                        foreground="white", background="black")
+        style.configure("TLabelframe", background="black")
+        style.configure("TRadiobutton", font=(preferences["Font Type"], preferences["Font Size"]),
+                        foreground="white", background="black")
+        style.configure("TEntry", font=(preferences["Font Type"], preferences["Font Size"]))
+        style.configure("TCheckbutton", font=(preferences["Font Type"], preferences["Font Size"]),
+                        foreground="white", background="black")
+        style.configure("TCombobox", font=(preferences["Font Type"], preferences["Font Size"]))
+
+    else:
+        style.configure("TLabel", font=(preferences["Font Type"], preferences["Font Size"]), foreground="black",
+                        background="SystemButtonFace")
+        style.configure("TFrame", foreground="black", background="SystemButtonFace")
+        style.configure("TLabelframe.Label", font=(preferences["Font Type"], preferences["Font Size"]),
+                        foreground="black", background="SystemButtonFace")
+        style.configure("TLabelframe", background="SystemButtonFace")
+        style.configure("TRadiobutton", font=(preferences["Font Type"], preferences["Font Size"]),
+                        foreground="black", background="SystemButtonFace")
+        style.configure("TEntry", font=(preferences["Font Type"], preferences["Font Size"]),
+                        foreground="black", background="SystemButtonFace")
+        style.configure("TCheckbutton", font=(preferences["Font Type"], preferences["Font Size"]),
+                        foreground="black", background="SystemButtonFace")
+        style.configure("TCombobox", font=(preferences["Font Type"], preferences["Font Size"]),
+                        foreground="black", background="SystemButtonFace")
+
+
+def get_preferences(preferences: dict, win: Tk) -> str:
     """
     Read in preferences from file.
 
+    If the file cannot be found, prompt for selecting a previously created preferences file or to create a new one.
+    A new file can be created using Edit Preferences Frame or the default_pref dictionary.
+
     :param preferences: Dictionary of program preferences
+    :param win: Parent window for Edit Preferences frame
     :return: String with full pathname of preferences file
     """
 
     # Check if preferences file exists
     preferences_file = f"{init_path}\\Preferences.pkl"
-    load_defaults = False
+    load_option = "normal"
 
     # Upgrading from older version: add new keys and remove text file after loading
     if not os.path.exists(preferences_file) and os.path.exists(f"{init_path}\\Preferences.txt"):
         # Load existing preferences
+        load_option = "normal"
         with (open(f"{init_path}\\Preferences.txt", "r")) as pref:
             for line in iter(pref.readline, ''):
                 key, value = line.split(":")
@@ -77,79 +109,141 @@ def get_preferences(preferences: dict) -> str:
                 preferences.update({key: value})
 
         # Add new keys
-        preferences.update({"Shortcut Prompt": True})
-        preferences.update({"Desktop Shortcut": ""})
-        preferences.update({"Start Menu Shortcut": ""})
+        for key, value in default_pref.items():
+            if key not in preferences.keys():
+                preferences.update({key: value})
 
         messagebox.showinfo(title="Preferences File Changed", message="The Preferences file has been updated to a new "
                                                                       "format to align with other program changes.")
-        os.remove(f"{init_path}\\Preferences.txt")
 
         # Write output to pickle file
         with (open(preferences_file, "wb")) as pref:
             pickle.dump(preferences, pref)
 
+    # File cannot be located
     elif not os.path.exists(preferences_file):
-        manual_sel = messagebox.askyesno(title="Missing Preferences",
-                                         message="The Preferences file could not be located. \n"
-                                                 "Choose Yes to select a previously-created Preferences file.\n"
-                                                 "Choose No to create a new Preferences file with the default options.")
-        # User opted not to select file, so load in defaults
-        if not manual_sel:
-            load_defaults = True
+        # Ask if file is in wrong location
+        prev_pref = messagebox.askyesno(title="Missing Preferences",
+                                         message="The Preferences file could not be located.\n"
+                                                 "Have you previously created a preferences file for this app?")
 
-        # User opted to select file
+        # No file previously created
+        if not prev_pref:
+            use_default = messagebox.askyesno(title="Use Default?", message="Should the default preferences be "
+                                                                            "used?")
+            load_option = "default" if use_default else "user-select"
+
+        # File previously created
         else:
-            is_txt = False
-            messagebox.showinfo(title="Select Preferences", message="Select the \".pkl\" file containing the "
-                                                                    "preferences.")
-            while not is_txt:
-                preferences_file = filedialog.askopenfilename(initialdir=init_path)
+            sel_exist = messagebox.askyesno(title="Select Existing?", message="Would you like to select the existing "
+                                                                              "file?")
 
-                # No file selected, so confirm retry
-                if preferences_file == "":
-                    retry = messagebox.askyesno(title="No File Selected", message="No file was selected. Would you "
-                                                                                  "like to retry?")
-                    if not retry:
+            # Select existing file
+            if sel_exist:
+                is_pkl = False
+                messagebox.showinfo(title="Select Preferences", message="Select the \".pkl\" file containing the "
+                                                                        "preferences.")
+                while not is_pkl:
+                    preferences_file = filedialog.askopenfilename(initialdir=init_path,
+                                                                  filetypes=[("Pickle Files", ".pkl")])
+
+                    # No file selected, so confirm retry
+                    if preferences_file == "":
+                        retry = messagebox.askyesno(title="No File Selected", message="No file was selected. Would you "
+                                                                                      "like to retry?")
+                        if not retry:
+                            preferences_file = ""
+                            is_pkl = True
+                            load_option = "default"
+                        continue
+
+                    # Confirm that file is .pkl
+                    if preferences_file[-4:] != ".pkl":
+                        messagebox.showerror(title="Invalid Extension", message="The selected file has the wrong "
+                                                                                "extension. Please select a \".pkl\" "
+                                                                                "file.")
                         preferences_file = ""
-                        is_txt = True
-                        load_defaults = True
-                    continue
+                        continue
 
-                # Confirm that file is .txt
-                if preferences_file[-4:] != ".pkl":
-                    messagebox.showerror(title="Invalid Extension", message="The selected file has the wrong extension."
-                                                                            " Please select a \".pkl\" file.")
-                    preferences_file = ""
-                    continue
+                    # Confirm that unpickled file is a dictionary
+                    with (open(preferences_file, "rb")) as pkl:
+                        if not isinstance(pickle.load(pkl), dict):
+                            messagebox.showerror(title="Invalid File Type",
+                                                 message="The selected file cannot be unpickled to a dictionary. Please"
+                                                         " try a different \".pkl\" file.")
+                            preferences_file = ""
+                            continue
 
-                # File is valid
-                is_txt = True
+                    # File is valid
+                    is_pkl = True
+                    load_option = "normal"
+
+                # Ask user if file should be copied to expected location to avoid future prompts
+                copy_file = messagebox.askyesno(title="Copy File", message="Should the Preferences file be copied to "
+                                                                           "the expected location to avoid future "
+                                                                           "prompts?")
+                if copy_file:
+                    shutil.copy2(preferences_file, f"{init_path}\\Preferences.pkl")
+
+            # Create file
+            else:
+                use_default = messagebox.askyesno(title="Use Default?", message="Should the default preferences be "
+                                                                                "used?")
+                load_option = "default" if use_default else "user-select"
 
     # Load in from selected file
-    if not load_defaults and preferences_file:
+    if load_option == "normal" and preferences_file:
         with (open(preferences_file, "rb")) as pref:
+            # Does not do direct assignment to ensure value of passed variable is updated
             preferences.update({key: value for key, value in pickle.load(pref).items()})
-        return preferences_file
+
+            # Update dictionary if any new items were added
+            old_len = len(preferences.keys())
+            for key, value in default_pref.items():
+                if key not in preferences.keys():
+                    preferences.update({key: value})
+
+            # Show warning if keys were added
+            if len(preferences.keys()) != old_len:
+                messagebox.showwarning(title="Preferences Altered",
+                                       message="The preferences dictionary was altered. This is either because a "
+                                               "new key was added in a version change or because the preferences "
+                                               "file did not contain the expected items.")
 
     # Load in defaults
-    preferences.update({"Font Type": "Times New Roman",
-                        "Font Size": 12,
-                        "Dark Mode": True,
-                        "Combine Non-Sequential File Selections on Move": "Ask",
-                        "Add Blank Page Between Files": True,
-                        "Shortcut Prompt": True,
-                        "Desktop Shortcut": "",
-                        "Start Menu Shortcut": ""})
+    elif load_option == "default":
+        preferences.update({key: value for key, value in default_pref.items()})
+
+    # Load in by Edit Preferences
+    elif load_option == "user-select":
+        messagebox.showinfo(title="Select Preferences", message="Please set up your preferences in the following "
+                                                                "window to continue.")
+
+        # Use default preferences as starting point and set up appearance
+        preferences.update({key: value for key, value in default_pref.items()})
+        set_styles(preferences, win)
+
+        # Launch Edit Preferences Frame
+        epf = Toplevel(win)
+        epf.title("Edit Preferences")
+        new_pref = default_pref
+        EditPreferencesFrame(epf, new_pref)
+        epf.wait_window()
+
 
     return preferences_file
 
 
-def add_shortcuts(preferences: dict) -> None:
+def add_shortcuts(preferences: dict, pref_file: str) -> None:
     """
     Check for existence of desktop and start menu shortcuts and create or edit shortcuts as needed.
 
+    Imports win32com.client for shortcut creation. If win32com is not available, it can be automatically installed
+    using pip. If the installation fails (or the system is not Windows), the shortcut prompt flag is the preferences
+    dictionary will be set to False to avoid re-prompting the user each time the application is launched.
+
     :param preferences: Dictionary of program configuration options
+    :param pref_file: Full path name of the preferences dictionary pickle file
     :return:
     """
 
@@ -158,9 +252,53 @@ def add_shortcuts(preferences: dict) -> None:
             preferences["Start Menu Shortcut"] == ""):
         return
 
-    # Return if pywin32 could not be installed
-    if "pywin32" not in sys.modules:
-        return
+    exit_at_end = False  # Flag to specify whether application should be exited
+
+    # Return if system is not Windows
+    if platform.system().lower() != "windows":
+        messagebox.showinfo(title="Auto-Shortcuts Unavailable", message="The automatic shortcut installation feature "
+                                                                        "is only available on Windows. The core of the "
+                                                                        "program can still be used.")
+        preferences["Shortcut Prompt"] = False  # To avoid reprompt on next start
+
+
+    # Import win32com.client and install if not available and user opts to auto-install it
+    #   If import fails or if user opts to not install, can continue, but without ability to add shortcuts
+    try:
+        import win32com.client
+
+    except ModuleNotFoundError:
+        auto_inst = messagebox.askyesno(title="Missing win32com",
+                                        message="The \"pywin32\" package was not found.\nWould you like to try to "
+                                                "automatically install pywin32?\nNote: If this is the second time "
+                                                "you've seen this message, auto-installation has failed. Please "
+                                                "select No and install the package manually.")
+        if auto_inst:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "pywin32"])
+            messagebox.showinfo(title="Restart Required", message="A program restart is necessary to confirm the "
+                                                                  "\"pywin32\" module was successfully installed.")
+            preferences["Desktop Shortcut"] = "Check install"
+            os.execv(sys.executable, ['python'] + [f"\"{sys.argv[0]}\""])
+
+
+        else:
+            cont = messagebox.askyesno(title="Continue?",
+                                       message="You can still use the program without the win32com package, but "
+                                               "shortcuts cannot be automatically created. Would you like to "
+                                               "continue?")
+            preferences["Shortcut Prompt"] = False  # To avoid reprompt on next start
+            if not cont:
+                exit_at_end = True
+
+    # Save changes to preferences dictionary if shortcut cannot be created
+    if not preferences["Shortcut Prompt"]:
+        with (open(pref_file, "wb")) as pref:
+            pickle.dump(preferences, pref)
+
+        if not exit_at_end:
+            return
+        else:
+            raise SystemExit
 
     # Sub-functions to create a shortcut
     def create_shortcut(sc_path: str) -> None:
@@ -240,46 +378,13 @@ def __main__():
     win.title(f"PDF Combiner v. {version}")
     win.resizable(False, True)
 
-    # Get preferences
+    # Get preferences and set up formatting
     preferences = {}
-    pref_file = get_preferences(preferences)
-    dark_mode = preferences["Dark Mode"]
+    pref_file = get_preferences(preferences, win)
+    set_styles(preferences, win)
 
     # Set up shortcuts if needed
-    add_shortcuts(preferences)
-
-    # Set up styles
-    style = ttk.Style()
-    if dark_mode:
-        win.configure(bg="black")
-        style.configure("TLabel", font=(preferences["Font Type"], preferences["Font Size"]), foreground="white",
-                        background="black")
-        style.configure("TFrame", foreground="white", background="black")
-        style.configure("TLabelframe.Label", font=(preferences["Font Type"], preferences["Font Size"]),
-                        foreground="white", background="black")
-        style.configure("TLabelframe", background="black")
-        style.configure("TRadiobutton", font=(preferences["Font Type"], preferences["Font Size"]),
-                        foreground="white", background="black")
-        style.configure("TEntry", font=(preferences["Font Type"], preferences["Font Size"]))
-        style.configure("TCheckbutton", font=(preferences["Font Type"], preferences["Font Size"]),
-                        foreground="white", background="black")
-        style.configure("TCombobox", font=(preferences["Font Type"], preferences["Font Size"]))
-
-    else:
-        style.configure("TLabel", font=(preferences["Font Type"], preferences["Font Size"]), foreground="black",
-                        background="SystemButtonFace")
-        style.configure("TFrame", foreground="black", background="SystemButtonFace")
-        style.configure("TLabelframe.Label", font=(preferences["Font Type"], preferences["Font Size"]),
-                        foreground="black", background="SystemButtonFace")
-        style.configure("TLabelframe", background="SystemButtonFace")
-        style.configure("TRadiobutton", font=(preferences["Font Type"], preferences["Font Size"]),
-                        foreground="black", background="SystemButtonFace")
-        style.configure("TEntry", font=(preferences["Font Type"], preferences["Font Size"]),
-                        foreground="black", background="SystemButtonFace")
-        style.configure("TCheckbutton", font=(preferences["Font Type"], preferences["Font Size"]),
-                        foreground="black", background="SystemButtonFace")
-        style.configure("TCombobox", font=(preferences["Font Type"], preferences["Font Size"]),
-                        foreground="black", background="SystemButtonFace")
+    add_shortcuts(preferences, pref_file)
 
     # Populate MainFrame
     MainFrame(win, preferences, pref_file)

@@ -6,7 +6,7 @@ from tkinter import *
 class Tooltip(OnHoverTooltipBase):
 
     def __init__(self, widget: tkinter.Widget, text: str="This is a tooltip.", hover_delay: int = 1000,
-                 max_width: int = 10000, show_when_disabled: bool = False):
+                 max_width: int = 10000):
         """
         Extend the OnHoverTooltip Base abstract class to show a label with the tooltip text.
 
@@ -14,7 +14,6 @@ class Tooltip(OnHoverTooltipBase):
         :param text: Tooltip text to be displayed
         :param hover_delay: Delay in milliseconds before tooltip is shown
         :param max_width: Maximum width of tooltip label; defaults to maximum available value
-        :param show_when_disabled: Flag to specify whether tooltip should be shown when anchor_widget is disabled
         """
 
         super().__init__(anchor_widget=widget, hover_delay=hover_delay)
@@ -23,7 +22,6 @@ class Tooltip(OnHoverTooltipBase):
         self.tool_text = text
         self.max_width = max_width
         self.user_max_width = max_width
-        self.show_when_disabled = show_when_disabled
         self.tip_width = 0
         self.tip_height = 0
 
