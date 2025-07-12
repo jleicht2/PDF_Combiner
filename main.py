@@ -9,7 +9,7 @@ import platform
 import shutil
 
 # Global variables
-version = "1.3"
+version = "1.4"
 
 # Default preferences
 default_pref = {"Font Type": "Times New Roman",
@@ -17,6 +17,7 @@ default_pref = {"Font Type": "Times New Roman",
                 "Dark Mode": True,
                 "Combine Non-Sequential File Selections on Move": "Ask",
                 "Compress Output": True,
+                "Launch File Dialog to Script Folder": True,
                 "Add Blank Page Between Files": True,
                 "Shortcut Prompt": True,
                 "Desktop Shortcut": "",

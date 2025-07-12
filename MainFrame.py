@@ -14,6 +14,7 @@ from io import BytesIO
 
 init_path = os.path.dirname(sys.argv[0]) + "\\Files"
 sys.path.append(init_path)
+fd_path = init_path  # Location to which to launch file dialogs
 
 # Import pypdf and install if not available and user opts to auto-install it
 try:
@@ -40,13 +41,19 @@ def get_path_name(extension: str) -> str:
     path = ""
     while path == "":
         if extension == ".txt":
-            path = filedialog.askopenfilename(initialdir=init_path, filetypes=[("Text Files", "*.txt")])
+            path = filedialog.askopenfilename(initialdir=fd_path, filetypes=[("Text Files", "*.txt")])
         elif extension == ".pdf":
-            path = filedialog.askopenfilename(initialdir=init_path, filetypes=[("PDF Files", "*.pdf")])
+            path = filedialog.askopenfilename(initialdir=fd_path, filetypes=[("PDF Files", "*.pdf")])
         else:
-            path = filedialog.askopenfilename(initialdir=init_path)
+            path = filedialog.askopenfilename(initialdir=fd_path)
+
+
 
         # File was not chosen: ask if user wishes to retry
+        if path == "":
+            return ""
+
+        """
         if path == "":
             confirm = messagebox.askyesno(title="No File Selected",
                                           message="No file was selected. Would you like "
@@ -54,6 +61,7 @@ def get_path_name(extension: str) -> str:
             if not confirm:
                 return ""
             continue
+        """
 
         # Confirm that file extension matches parameter
         if path[-len(extension):] != extension:
@@ -63,6 +71,20 @@ def get_path_name(extension: str) -> str:
             path = ""
 
     return path
+
+def set_fd_path(to_script: bool) -> None:
+    """
+    Set the "fd_path" variable to the script location or an empty string depending on the user's preference.
+
+    :param to_script: Boolean for whether the file dialogs should be launched to the script location
+    :return:
+    """
+
+    global fd_path
+    if not to_script:
+        fd_path = ""
+    else:
+        fd_path = init_path
 
 class MainFrame:
 
@@ -86,13 +108,14 @@ class MainFrame:
 
         # Other parameters
         self.header_str = "Start adding files using the frame above."
-        self.file_info = []  # List of (full path, file name) tuples
+        self.file_info = []  # List of (full path, file name, unique ID) tuples
         self.checkboxes = []
         self.check_states = []
         self.placeholder_deleted = False
         self.selected_indices = []
         self.selected_pages = {}  # Stores info from the page_sel window in the right-click event handler
         self.write_pages = {}  # Stores "cleaned" info from the selected_pages dictionary
+        self.next_id = 0  # Next unique ID to use
 
         # Merger frame attributes
         self.is_writing = False
@@ -353,30 +376,39 @@ class MainFrame:
             return
 
         # Check if file is already in page selection dictionary
-        if self.file_info[index][0] not in self.selected_pages.keys():
-            self.selected_pages.update({self.file_info[index][0]: ("", True, True)})
+        if self.file_info[index][2] not in self.selected_pages.keys():
+            self.selected_pages.update({self.file_info[index][2]: (self.file_info[index][0], "", True, True)})
 
+        # Confirm no other page selection windows are open
+        for child in self.win.winfo_children():
+            if isinstance(child, Toplevel):
+                if "Page Selection" in child.title():
+                    messagebox.showinfo(title="Close Dialog", message="Please save the previous Page Selections before "
+                                                                      "launching this Page Selection.")
+                    child.lift()
+                    return
         # Call page selection window
         PageSelection(self.win, self.preferences, index, self.file_info[index], self.selected_pages)
 
     #   File handling
-    def add_files(self, mode: str = ("multi", "single"), prompt: bool = True) -> None:
+    def add_files(self, mode: str = ("multi", "single"), preloaded: bool = False) -> None:
         """
         Add selected file(s) to list and update window.
 
         If in multiple selection mode, calls filedialog box first is prompt is true. Deletes placeholders if necessary.
 
         :param mode: File addition type
-        :param prompt: Flag for whether the list of files should be prompted from user
+        :param preloaded: Flag for whether the list of files was loaded from a save file
         :return:
         """
 
         # Temporary list to store file additions
         add_list = []
 
-        # Add multiple (with prompt): open file dialog
-        if mode == "multi" and prompt:
-            path_list = filedialog.askopenfilenames(filetypes=[("PDF Files", "*.pdf")])
+        # Add multiple (not from save): open file dialog
+        if mode == "multi" and not preloaded:
+            set_fd_path(self.preferences["Launch File Dialog to Script Folder"])
+            path_list = filedialog.askopenfilenames(initialdir=fd_path, filetypes=[("PDF Files", "*.pdf")])
 
             # Add files to appropriate list
             skipped_files = []
@@ -393,8 +425,8 @@ class MainFrame:
                     message += f"{skipped_file.split('/')[-1]}\n"
                 messagebox.showwarning(title="Skipped Files", message=message)
 
-        # Add multiple (without prompt): Use existing file_info
-        elif mode == "multi" and not prompt:
+        # Add multiple (from save): Use existing file_info
+        elif mode == "multi" and preloaded:
             add_list = copy.deepcopy(self.file_info)
             self.file_info.clear()
 
@@ -433,6 +465,11 @@ class MainFrame:
 
         # Update window accordingly
         for info in add_list:
+            # Add "unique ID" to info (if not preloaded)
+            if not preloaded:
+                info = (info[0], info[1], self.next_id)
+                self.next_id += 1
+
             # Add checkbutton to list
             self.check_states.append(BooleanVar(value=False))
             self.checkboxes.append(ttk.Checkbutton(self.scroll_frame, variable=self.check_states[-1]))
@@ -459,6 +496,7 @@ class MainFrame:
         # Prompt user for save file location
         messagebox.showinfo(title="Select Save", message="Select the text file from which to load the list of files "
                                                          "on the next screen.")
+        set_fd_path(self.preferences["Launch File Dialog to Script Folder"])
         load_file = get_path_name(".txt")
         if load_file == "":  # User did not select file
             return
@@ -495,24 +533,26 @@ class MainFrame:
                                                                              f"another?")
 
                 if revise:
+                    set_fd_path(self.preferences["Launch File Dialog to Script Folder"])
                     path_name = get_path_name(".pdf")
                     file_name = path_name.split("/")[-1]
                 else:
                     path_name = ""
 
-            # Add info to dictionary (if file exists)
+            # Add info to file info list (if file exists)
             if path_name != "":
-                self.file_info.append((path_name, file_name))
+                self.file_info.append((path_name, file_name, self.next_id))
+                self.next_id += 1
                 load_count += 1
 
-            # Add details to dictionary (if file exists)
+            # Add details to page selection dictionary (if file exists)
             if dict_include and path_name != "":
                 resort = True if resort == "True" else False
                 remove_dup = True if remove_dup == "True" else False
-                self.selected_pages.update({path_name: (pages_sel, resort, remove_dup)})
+                self.selected_pages.update({self.file_info[-1][2]: (path_name, pages_sel, resort, remove_dup)})
 
         # Add files to window
-        self.add_files(mode="multi", prompt=False)
+        self.add_files(mode="multi", preloaded=True)
 
         # Show completion message
         file_component = f"1 file was" if load_count == 1 else f"{load_count} files were"
@@ -625,11 +665,14 @@ class MainFrame:
         #   Delete existing file labels
         for widget in self.scroll_frame.winfo_children():
             # Only delete if in column 2 (file name label) and is not header label
-            if widget.grid_info()["column"] == 2 and self.header_str not in widget.cget("text"):
-                widget.destroy()
+            try:
+                if widget.grid_info()["column"] == 2 and self.header_str not in widget.cget("text"):
+                    widget.destroy()
+            except KeyError:
+                pass
 
         #   Add new file labels
-        for i, (_, file_name) in enumerate(self.file_info):
+        for i, (_, file_name, _) in enumerate(self.file_info):
             ttk.Label(self.scroll_frame, text=file_name).grid(row=i, column=2, padx=(1, 5), pady=0.5, sticky="w")
 
         #   Clear all checkboxes
@@ -680,7 +723,7 @@ class MainFrame:
 
             # Remove selected files
             for i, index in enumerate(self.selected_indices):
-                self.selected_pages[self.file_info[index - i][0]] = ("", True, True)
+                self.selected_pages[self.file_info[index - i][2]] = ("", "", True, True)
                 self.file_info.pop(index - i)
                 self.checkboxes[-1].grid_forget()
                 self.checkboxes.pop()
@@ -702,7 +745,7 @@ class MainFrame:
                     pass
 
             #   Add new file labels
-            for i, (file_path, file_name) in enumerate(self.file_info):
+            for i, (file_path, file_name, _) in enumerate(self.file_info):
                 label = ttk.Label(self.scroll_frame, text=file_name, cursor="hand2")
                 label.grid(row=i, column=2, padx=(1, 5), pady=0.5, sticky="w")
                 Tooltip(label, text=f"Full path: {file_path}\nRight click to select pages")
@@ -739,7 +782,8 @@ class MainFrame:
                                                                   "the next screen.")
         save_file = ""
         while save_file == "":
-            save_file = filedialog.asksaveasfilename(initialdir=init_path)
+            set_fd_path(self.preferences["Launch File Dialog to Script Folder"])
+            save_file = filedialog.asksaveasfilename(initialdir=fd_path, filetypes=[("Text File", ".txt")])
             if save_file == "":
                 confirm = messagebox.askyesno(title="No File Selected", message="No file was selected. Would you like "
                                                                                 "to retry?")
@@ -754,11 +798,12 @@ class MainFrame:
             save_file += ".txt"
 
         with open(f"{save_file}", "w+") as file:
-            for path, _ in self.file_info:
+            for path, name, uid in self.file_info:
                 file.write(f"{path}")
                 try:
-                    for item in self.selected_pages[path]:
-                        file.write(f"\t{item}")
+                    for i, item in enumerate(self.selected_pages[uid]):
+                        if i != 0:
+                            file.write(f"\t{item}")
                 except KeyError:  # Selected pages window was not launched for this file
                     pass
                 file.write("\n")
@@ -817,7 +862,7 @@ class MainFrame:
             self.all_boxes.state(["!selected", "alternate"])
 
         # Update file count label
-        total_size = sum([os.path.getsize(file) for (file, _) in self.file_info]) / 1024 ** 2
+        total_size = sum([os.path.getsize(file) for (file, *_) in self.file_info]) / 1024 ** 2
         if len(self.file_info) == 1:
             self.file_count.configure(text=f"  1 file selected ({total_size:.1f} MB)")
         else:
@@ -888,8 +933,13 @@ class MainFrame:
         # Reconfigure window
         self.selections_frame.grid_remove()
         self.selected_frame.grid_remove()
-        self.merger_frame = ttk.Frame(self.win)
-        self.merger_frame.grid(row=0, column=0, sticky="nsew")
+
+        if self.merger_frame is None:  # Only create merger frame if it wasn't previously created
+            self.merger_frame = ttk.Frame(self.win)
+            self.merger_frame.grid(row=0, column=0, sticky="nsew")
+        else:
+            self.merger_frame.grid()
+
         self.win.update_idletasks()
         self.win.minsize(0, 0)
         self.win.geometry(f"{self.win.winfo_reqwidth()}x{self.win.winfo_reqheight()}+{self.win.winfo_x()}+"
@@ -905,6 +955,27 @@ class MainFrame:
 
         Thread(target=self.generate_merger, daemon=True).start()
 
+    def return_to_files(self) -> None:
+        """If no save file is selected and user elects to return to file selection window, return to previous screen."""
+
+        # Reconfigure window
+        self.merger_frame.grid_remove()
+        self.selections_frame.grid()
+        self.selected_frame.grid()
+
+        self.win.update_idletasks()
+        self.win.minsize(0, 0)
+        self.win.geometry(f"{self.win.winfo_reqwidth()}x{self.win.winfo_reqheight()}+{self.win.winfo_x()}+"
+                          f"{self.win.winfo_y()}")
+
+        # Disable/Update buttons
+        self.next.configure(text="Merge")
+        self.next.set_command(lambda: self.merge_files())
+        self.next.set_state("normal")
+        self.save.set_state("normal")
+        self.cancel.set_state("normal")
+        self.next.focus_set()
+
     # Merger frame methods
     def generate_page_lists(self) -> None:
         """
@@ -912,7 +983,7 @@ class MainFrame:
         :return:
         """
 
-        for path, (page_str, resort, remove_dup) in self.selected_pages.items():
+        for uid, (path, page_str, resort, remove_dup) in self.selected_pages.items():
             # Create list of all page numbers
             page_list = []
             for item in page_str.split(","):
@@ -950,7 +1021,7 @@ class MainFrame:
                 page_list = sorted(page_list)
 
             # Post "cleaned" data to new dictionary
-            self.write_pages.update({path: page_list})
+            self.write_pages.update({uid: page_list})
 
     def generate_merger(self) -> None:
         """Check for and remove duplicate files (if needed), get the file save location, then generate the PdfWriter."""
@@ -965,7 +1036,7 @@ class MainFrame:
         #   Generate list of all files names and indices
         file_indices = {}
         dup_file_info = copy.deepcopy(self.file_info)  # Store copy of file_info to be used if user returns to selection
-        for i, (path, _) in enumerate(self.file_info):
+        for i, (path, *_) in enumerate(self.file_info):
             if path not in file_indices.keys():
                 file_indices.update({path: [i]})
             else:
@@ -973,6 +1044,7 @@ class MainFrame:
 
         #   Check if any index list has more than one object and delete if necessary
         cumulative_index = 0  # Tracks deletions across all duplicate instances
+
         for path, index_list in file_indices.items():
             if len(index_list) > 1:
                 # Ask user if duplicates should be deleted
@@ -1018,7 +1090,8 @@ class MainFrame:
             messagebox.showinfo(title="Select Save Location",
                                 message="Select the save location for the combined PDF file on the next screen.")
         while self.save_path == "":
-            self.save_path = filedialog.asksaveasfilename(initialdir=init_path, filetypes=[("PDF File", "*.pdf")])
+            set_fd_path(self.preferences["Launch File Dialog to Script Folder"])
+            self.save_path = filedialog.asksaveasfilename(initialdir=fd_path, filetypes=[("PDF File", "*.pdf")])
 
             # No file was selected: prompt if selection should be tried again
             if self.save_path == "":
@@ -1028,9 +1101,19 @@ class MainFrame:
                     self.save_path = ""
                     continue
 
-                # No retry: exit
-                self.on_close()
-                return
+                # No retry: ask if user wants to return to file selection
+                else:
+                    return_to_files = messagebox.askyesno(title="Return to File Selection",
+                                                          message="Would you like to return to the file selection "
+                                                                  "process?")
+                    if return_to_files:
+                        self.return_to_files()
+                        return
+
+                    # No return fo files: close
+                    else:
+                        self.on_close()
+                        return
 
             # Append extension if needed
             if ".pdf" not in self.save_path:
@@ -1051,6 +1134,10 @@ class MainFrame:
             """Add or remove dot from the "Merging" label"""
             nonlocal add_dot
 
+            # Skip if merging is already completed
+            if str(merger_label.cget("text")) == "Merging Completed.":
+                return
+
             if add_dot:
                 merger_label.configure(text=f"{str(merger_label.cget('text'))}.")
             else:
@@ -1066,8 +1153,10 @@ class MainFrame:
 
         # Load file into buffer if save file is to be merged
         save_file_copy = BytesIO()
-        if self.save_path in [full_path for full_path, _ in self.file_info]:
+        save_orig_size = 0
+        if self.save_path in [full_path for full_path, *_ in self.file_info]:
             PdfWriter(self.save_path).write(save_file_copy)
+            save_orig_size = os.path.getsize(self.save_path)
 
         # Delete file to be used for saving PDF (if it exists)
         if os.path.exists(self.save_path):
@@ -1103,12 +1192,13 @@ class MainFrame:
             self.merger = PdfWriter()
 
             #   Add files (including blank pages) to merger and determine total size
-            for path_i, _ in self.file_info:
+            for path_i, name_i, uid_i in self.file_info:
                 if not os.path.exists(path_i) and path_i != self.save_path:
                     reselect_file = messagebox.askyesno(title="File Not Found", message=f"The file \"{path_i}\" was not"
                                                                                         f" found. Would you like to "
                                                                                         f"select a replacement file?")
                     if reselect_file:
+                        set_fd_path(self.preferences["Launch File Dialog to Script Folder"])
                         path_i = get_path_name(".pdf")
 
                 # Open file if necessary
@@ -1119,26 +1209,28 @@ class MainFrame:
 
                 if path_i != "":  # Will be empty string if file does not exist
                     # No entry found in write_pages: append entire file
-                    if path_i not in self.write_pages.keys():
+                    if uid_i not in self.write_pages.keys():
                         self.merger.append(path_obj)
-                        self.total_size += len(path_obj.getbuffer())
+                        self.total_size += os.path.getsize(path_i) if path_i != self.save_path else save_orig_size
 
                     # Entry found in write_pages: append selected pages
                     else:
                         reader = PdfReader(path_obj)
                         # If all pages were selected, add full file at once
                         check_str = f"1-{reader.get_num_pages()}"
-                        if self.selected_pages[path_i][0] == check_str:
+                        if self.selected_pages[uid_i][0] == check_str:
                             self.merger.append(path_obj)
-                            self.total_size += len(path_obj.getbuffer())
+                            self.total_size += os.path.getsize(path_i) if path_i != self.save_path else save_orig_size
                             continue
 
                         # Otherwise, add pages individually
-                        for page in self.write_pages[path_i]:
+                        for page in self.write_pages[uid_i]:
                             self.merger.add_page(reader.pages[page - 1])
-                            # Estimate output size by scaling original file size by fraction of pages being printed
-                            self.total_size += (len(path_i.getbuffer()) *
-                                                len(self.write_pages[path_i]) / reader.get_num_pages())
+
+                        # Estimate output size by scaling original file size by fraction of pages being printed
+                        total_size = os.path.getsize(path_i) if path_i != self.save_path else save_orig_size
+                        self.total_size += (total_size *
+                                            len(self.write_pages[uid_i]) / reader.get_num_pages())
 
                     # Append blank page if specified
                     if self.add_blank_page.get():

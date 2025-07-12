@@ -157,3 +157,29 @@ Page Selection:
 - Now checks for no ",," in page selection input string when attempting to exit
 
 **************************
+
+Main v. 1.4 Committed 2025-07-12
+Changes-
+
+Edit Preferences Frame:
+- Added toggle for whether file dialog should be launched to script location
+    - If not launched to script location, will launch to whatever is file dialog's default location
+
+Main:
+- Added boolean for whether file dialog should be launched to script location to default preferences dictionary
+
+Main Frame:
+- Added conditional to merger status label updating to ensure label is not "deleted" after merging is complete
+- Only one "Page Selection" window can be open at a time
+    - If a window is already open, a message is shown and the window is lifted to the top of the stack
+- Fixed output file size calculation when a subset of pages is selected
+- File dialog now opens to script location or previous location depending on user preference
+- If no output file is selected, user can elect to return to file selection process (rather than being forced to exit)
+- Added a "unique ID" (integer) to the file_info list of tuples
+- Changed selected_pages dictionary to be keyed using the unique ID rather than file path
+    - This allows different page ranges to be selected for duplicate files
+- Commented out text confirming user does not want to retry selecting a file in get_path_name
+
+Page Selection:
+- Added docstrings to methods
+- Updated for changes to selected_pages dictionary structure

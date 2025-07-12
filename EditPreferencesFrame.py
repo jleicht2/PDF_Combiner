@@ -43,6 +43,11 @@ class EditPreferencesFrame:
         else:
             self.preference_dict["Compress Output"] = False
 
+        if self.fd_launch_select.get():
+            self.preference_dict["Launch File Dialog to Script Folder"] = True
+        else:
+            self.preference_dict["Launch File Dialog to Script Folder"] = False
+
         
         # Close window
         self.on_close()
@@ -63,6 +68,7 @@ class EditPreferencesFrame:
         self.dark_mode_select.set(self.orig_preference_dict["Dark Mode"])
         self.combine_non_seq_select.set(self.orig_preference_dict["Combine Non-Sequential File Selections on Move"])
         self.compress_out_select.set(self.orig_preference_dict["Compress Output"])
+        self.fd_launch_select.set(self.orig_preference_dict["Launch File Dialog to Script Folder"])
 
         self.win.lift()
 
@@ -82,7 +88,8 @@ class EditPreferencesFrame:
                 self.preference_dict["Dark Mode"] != self.dark_mode_select.get() or
                 self.preference_dict["Combine Non-Sequential File Selections on Move"] !=
                     self.combine_non_seq_select.get() or
-                self.compress_out_select.get() != self.preference_dict["Compress Output"]):
+                self.compress_out_select.get() != self.preference_dict["Compress Output"] or
+                self.fd_launch_select.get() != self.preference_dict["Launch File Dialog to Script Folder"]):
             save = messagebox.askyesno(title="Unsaved Changes", message="You have unsaved changes. Would you like to "
                                                                         "save them before exiting?")
             if save:
@@ -103,7 +110,8 @@ class EditPreferencesFrame:
         # Changed something other than appearance: Show message for successful completion
         elif (self.orig_preference_dict["Combine Non-Sequential File Selections on Move"] !=
                 self.combine_non_seq_select.get() or
-                self.orig_preference_dict["Compress Output"] != self.compress_out_select.get()):
+                self.orig_preference_dict["Compress Output"] != self.compress_out_select.get() or
+                self.orig_preference_dict["Launch File Dialog to Script Folder"] != self.fd_launch_select.get()):
             messagebox.showinfo(title="Save Successful", message="Changes saved successfully.")
 
         # Close window
@@ -214,16 +222,26 @@ class EditPreferencesFrame:
         # Compress output
         self.compress_out_frame = ttk.Frame(self.win)
         self.compress_out_frame.grid(row=3, column=0, padx=5, pady=1, sticky="ew")
-        self.compress_out_select = BooleanVar(value = self.preference_dict["Compress Output"])
+        self.compress_out_select = BooleanVar(value=self.preference_dict["Compress Output"])
         self.compress_out_box = ttk.Checkbutton(self.compress_out_frame, variable=self.compress_out_select,
                                                 text="Compress Output")
-        self.compress_out_box.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        self.compress_out_box.grid(row=0, column=0, padx=5, pady=5, sticky="w")
         Tooltip(self.compress_out_box, text="Use PdfWriter's compress_identical_objects method to reduce output file "
                                             "size")
 
+        # File dialog launch location (script or previous folder)
+        self.fd_launch_frame = ttk.Frame(self.win)
+        self.fd_launch_frame.grid(row=4, column=0, padx=5, pady=1, sticky="ew")
+        self.fd_launch_select = BooleanVar(value=self.preference_dict["Launch File Dialog to Script Folder"])
+        self.fd_launch_box = ttk.Checkbutton(self.fd_launch_frame, variable=self.fd_launch_select,
+                                             text="Launch File Dialog to Script Folder")
+        self.fd_launch_box.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        Tooltip(self.fd_launch_box, text="When launching any file dialog, default to the script location rather than "
+                                         "the previously selected folder")
+
         # Action buttons
         self.btn_frame = ttk.Frame(self.win)
-        self.btn_frame.grid(row=4, column=0, padx=5, pady=1, sticky="ew")
+        self.btn_frame.grid(row=5, column=0, padx=5, pady=1, sticky="ew")
 
         (LabelButton(self.btn_frame, text="Save", command=lambda: self.save_settings(), dark_mode=self.dark_mode)
          .grid(row=0, column=0, padx=5, pady=5, sticky="e"))

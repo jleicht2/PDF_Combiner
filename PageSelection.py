@@ -7,8 +7,17 @@ from tkinter import messagebox
 
 class PageSelection(Toplevel):
     
-    def __init__(self, win: tkinter.Misc, preferences: dict ,index: int, file_info: tuple[str, str],
-                 page_info: dict[str: (str, bool)]):
+    def __init__(self, win: tkinter.Misc, preferences: dict, index: int, file_info: tuple[str, str, int],
+                 page_info: dict[int: (str, str, bool, bool)]):
+        """
+        Populate the Toplevel window for selecting which pages numbers for the given file should be combined.
+
+        :param win: Tkinter window to be the parent of Toplevel
+        :param preferences: Dictionary of program preferences
+        :param index: Index of selected file in the file_info list
+        :param file_info: List of (full pathname, file name, unique id) tuples
+        :param page_info: Dictionary of page selections and relevant settings
+        """
 
         super().__init__(win)
         self.iconify()
@@ -19,8 +28,9 @@ class PageSelection(Toplevel):
         self.font_size = int(preferences["Font Size"])
         self.file_path = file_info[0]
         self.file_name = file_info[1][:-4]
+        self.unique_id = file_info[2]
         self.page_info = page_info
-        self.page_list = page_info[self.file_path][0]
+        self.page_list = page_info[self.unique_id][1]
 
         # Other parameters
         self.max_page = 0
@@ -55,13 +65,13 @@ class PageSelection(Toplevel):
         self.sel_pages.grid(row=4, column=0, columnspan=2, padx=5, pady=(1, 5), sticky="w")
 
         #   Checkbox to set whether pages should be sorted when merging files
-        self.resort = BooleanVar(value=self.page_info[self.file_path][1])
+        self.resort = BooleanVar(value=self.page_info[self.unique_id][2])
         self.resort_check = ttk.Checkbutton(self, text="Resort pages to original order when merging files",
                                             variable=self.resort)
         self.resort_check.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="w")
 
         #   Checkbox to set whether duplicate pages should be removed when merging files
-        self.remove_dup = BooleanVar(value=self.page_info[self.file_path][2])
+        self.remove_dup = BooleanVar(value=self.page_info[self.unique_id][3])
         self.remove_dup_check = ttk.Checkbutton(self, text="Remove duplicates pages when merging files",
                                                 variable=self.remove_dup)
         self.remove_dup_check.grid(row=6, column=0, columnspan=2, padx=5, pady=5, sticky="w")
@@ -73,10 +83,10 @@ class PageSelection(Toplevel):
         self.select.grid(row=7, column=1, padx=5, pady=5, sticky="w")
 
         #   Populate page count
-        if not self.page_info[self.file_path][0]:  # No pages selected; populate with full page range
+        if not self.page_info[self.unique_id][1]:  # No pages selected; populate with full page range
             self.reset(prompt=False)
         else:
-            self.pages_sel.set(self.page_info[self.file_path][0])  # Populate with previous selection
+            self.pages_sel.set(self.page_info[self.unique_id][1])  # Populate with previous selection
         
         # Move on top of parent window
         self.deiconify()
@@ -97,6 +107,13 @@ class PageSelection(Toplevel):
 
 
     def on_type(self, event: Event) -> None:
+        """
+        Confirm that characters typed into the page selection entry box are valid (numbers, hyphens, or commas).
+
+        :param event: Event from the KeyPress event handler
+        :return:
+        """
+
         # Return if pressed key outside of entry widget
         if event.widget != self.sel_pages:
             return
@@ -115,6 +132,12 @@ class PageSelection(Toplevel):
             self.pages_sel.set(new_str)
 
     def reset(self, prompt: bool = True) -> None:
+        """
+        Reset the page number entry box to be the full possible page range for the selected file after prompting.
+
+        :param prompt: Flag for whether the user should be prompted before resetting the page selection entry box
+        :return:
+        """
 
         # If needed, prompt user
         if prompt:
@@ -128,6 +151,14 @@ class PageSelection(Toplevel):
         self.pages_sel.set(f"1-{self.max_page}")
 
     def finish(self) -> None:
+        """
+        Verify the integrity of the page selection input string, then store the information in the page selection dict.
+
+        Confirms that the entry can be "reduced" to a list of page numbers that are valid given the number of pages in
+        the file.
+
+        :return:
+        """
 
         # Make string represent all pages if empty
         if len(self.pages_sel.get()) == 0:
@@ -270,6 +301,7 @@ class PageSelection(Toplevel):
             self.pages_sel.set(new_page_sel)
 
         # Store information in dictionary
-        self.page_info[self.file_path] = (self.pages_sel.get(), self.resort.get(), self.remove_dup.get())
+        self.page_info[self.unique_id] = (self.file_path, self.pages_sel.get(), self.resort.get(),
+                                          self.remove_dup.get())
 
         self.destroy()
