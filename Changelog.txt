@@ -179,6 +179,8 @@ Main Frame:
 - Changed selected_pages dictionary to be keyed using the unique ID rather than file path
     - This allows different page ranges to be selected for duplicate files
 - Commented out text confirming user does not want to retry selecting a file in get_path_name
+- Changed duplicate file resolution to use the new return_to_files method (1.4.1 2025-07-15)
+- Fixed "Calculating" being shown instead of "Finishing up" for time remaining label when writing (1.4.1 2025-07-15)
 
 Page Selection:
 - Added docstrings to methods

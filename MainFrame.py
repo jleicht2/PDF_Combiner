@@ -964,7 +964,9 @@ class MainFrame:
         self.selected_frame.grid()
 
         self.win.update_idletasks()
-        self.win.minsize(0, 0)
+        self.win.minsize(self.min_size[0], self.min_size[1])
+        self.win.update_idletasks()
+        self.win.maxsize(self.win.winfo_reqwidth(), self.win.winfo_screenheight() - 80)
         self.win.geometry(f"{self.win.winfo_reqwidth()}x{self.win.winfo_reqheight()}+{self.win.winfo_x()}+"
                           f"{self.win.winfo_y()}")
 
@@ -1065,19 +1067,7 @@ class MainFrame:
 
                         # Reconfigure window
                         self.file_info = copy.deepcopy(dup_file_info)
-                        self.merger_frame.grid_forget()
-                        self.selections_frame.grid()
-                        self.selected_frame.grid()
-                        self.win.minsize(self.min_size[0], self.min_size[1])
-                        self.win.update_idletasks()
-                        self.win.maxsize(self.win.winfo_reqwidth(), self.win.winfo_screenheight() - 80)
-                        self.win.geometry(f"{self.win.winfo_reqwidth()}x{self.win.winfo_reqheight()}+"
-                                          f"{self.win.winfo_x()}+{self.win.winfo_y()}")
-                        self.next.configure(text="Merge")
-                        self.next.set_command(lambda: self.merge_files())
-                        self.next.set_state("normal")
-                        self.cancel.set_state("normal")
-                        self.save.set_state("normal")
+                        self.return_to_files()
                         return
 
                     # User approves: Delete duplicate entries
@@ -1325,19 +1315,23 @@ class MainFrame:
 
             #   Otherwise, just subtract one second
             else:
-                try:
-                    minutes, seconds = time_remaining.cget("text").split(":")
-                except ValueError:
-                    minutes, seconds = 0, 0
-                total_time = int(minutes) * 60 + int(seconds)
-                total_time -= 1
+                label_text = time_remaining.cget("text")
+
+                # If something other than time shown, keep that label
+                if label_text == "Calculating":
+                    total_time = -2
+                elif label_text == "Finishing up":
+                    total_time = -1
+                else:
+                    minutes, seconds = label_text.split(":")
+                    total_time = int(minutes) * 60 + int(seconds)
 
                 minutes = total_time // 60
                 seconds = total_time % 60
 
-                if total_time < 1 and ";" in time_remaining.cget("text"):
+                if total_time == -1:
                     time_remaining.configure(text="Finishing up")
-                elif total_time < 1 and ";" not in time_remaining.cget("text"):
+                elif total_time == -2:
                     time_remaining.configure(text="Calculating")
                 else:
                     time_remaining.configure(text=f"{minutes:>02.0f}:{seconds:>02.0f}")
